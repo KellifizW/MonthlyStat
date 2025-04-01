@@ -135,9 +135,10 @@ def calculate_staff_stats(df):
             main_case = staff_main_case.get(resp_staff)
 
             if not is_collaboration:
-                staff_total_stats[resp_staff]['個人'] += 1
-                if case_number != main_case:
-                    staff_outside_stats[resp_staff]['個人'] += 1
+                if case_number == main_case:
+                    staff_total_stats[resp_staff]['個人'] += 1  # 只計入本區個人
+                else:
+                    staff_outside_stats[resp_staff]['個人'] += 1  # 只計入外區個人
                 st.write(f"行 {index}: {resp_staff} 個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
             else:
                 staff_total_stats[resp_staff]['協作'] += 1
@@ -154,7 +155,7 @@ def calculate_staff_stats(df):
                 st.write(f"行 {index}: {resp_staff} 協作 +1, {second_staff} 協作 +1 (CaseNumber: {case_number}, 本區: {main_case})")
         except Exception as e:
             st.error(f"處理行 {index} 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
-            continue  # 繼續處理下一行，而不是中止
+            continue
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
