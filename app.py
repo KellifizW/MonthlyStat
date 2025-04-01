@@ -3,26 +3,40 @@ import pandas as pd
 from collections import Counter
 import io
 
+# 預定義的欄位名稱
+EXPECTED_COLUMNS = [
+    'CaseNumber', 'RespStaffLogin', 'RespStaff', '2ndRespStaffLoginID', '2ndRespStaffName',
+    'CoachedStaffLogin', 'CoachedStaff', 'Dept', 'Id', 'ServiceDate', 'ServiceTime',
+    'CaseName', 'HomeName', 'NumberOfSession', 'NumberOfParticipant(Without Volunteer Count)',
+    '活動編號', '活動類型'
+]
+
 # 函數：使用 Big5 編碼讀取 CSV，並提供容錯
 def read_csv_with_big5(file):
     st.write("已知檔案使用 Big5 編碼，開始讀取...")
     file.seek(0)
     try:
-        # 先嘗試標準 Big5 編碼
-        df = pd.read_csv(file, encoding='big5')
-        st.write("成功使用標準 Big5 編碼讀取檔案")
+        # 先嘗試標準 Big5 編碼，指定分隔符為制表符
+        df = pd.read_csv(file, encoding='big5', sep='\t')
+        st.write("成功使用標準 Big5 編碼讀取檔案（分隔符：制表符）")
+        # 如果欄位數量不匹配，手動設置欄位名稱
+        if len(df.columns) != len(EXPECTED_COLUMNS):
+            st.write("欄位數量不匹配，嘗試手動設置欄位名稱")
+            file.seek(0)
+            df = pd.read_csv(file, encoding='big5', sep='\t', names=EXPECTED_COLUMNS, header=0)
         return df, 'big5'
     except UnicodeDecodeError as ude:
         st.write(f"標準 Big5 編碼失敗，錯誤信息: {str(ude)}")
         st.write("嘗試使用 Big5 並忽略無效字符...")
         file.seek(0)
-        # 讀取原始內容並處理無效字符
         content = file.read().decode('big5', errors='replace')
-        df = pd.read_csv(io.StringIO(content))
+        df = pd.read_csv(io.StringIO(content), sep='\t', names=EXPECTED_COLUMNS, header=0)
         st.write("成功使用 Big5 (忽略無效字符) 讀取檔案")
         return df, 'big5 (with error replacement)'
     except Exception as e:
         st.error(f"無法使用 Big5 讀取檔案: {str(e)}")
+        file.seek(0)
+        st.write("檔案原始內容（前 500 字符）：", file.read()[:500].decode('big5', errors='replace'))
         return None, None
 
 # 函數：計算本區和外區統計
@@ -79,13 +93,11 @@ def main():
     st.title("員工活動統計工具 (Big5 編碼專用)")
     st.write("請上傳使用 Big5 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
-    # 檔案上傳功能
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
         try:
-            # 讀取檔案並使用 Big5 編碼
             df, used_encoding = read_csv_with_big5(uploaded_file)
             if df is None:
                 st.error("無法讀取檔案，請檢查檔案是否為有效的 Big5 編碼 CSV")
@@ -95,16 +107,13 @@ def main():
             st.write("以下是前幾行數據：")
             st.dataframe(df.head())
 
-            # 計算統計結果
             staff_total_stats, staff_outside_stats = calculate_staff_stats(df)
 
-            # 顯示本區統計
             st.subheader("本區統計（總個人與協作次數）")
             total_stats_df = pd.DataFrame(staff_total_stats).T
             total_stats_df.columns = ['個人 (節)', '協作 (節)']
             st.table(total_stats_df)
 
-            # 顯示外區統計
             st.subheader("外區統計")
             outside_stats_df = pd.DataFrame(staff_outside_stats).T
             outside_stats_df.columns = ['個人 (節)', '協作 (節)']
