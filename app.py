@@ -57,8 +57,9 @@ def calculate_staff_stats(df):
     staff_case_counts = df[df['2ndRespStaffName'].isna()].groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
 
-    # 記錄溫?邦的外展日數計算步驟
+    # 記錄溫?邦的外展日數和徐家兒的 2ndRespStaffName 資料
     wen_days_log = []
+    xu_second_staff_log = []
 
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
@@ -98,8 +99,10 @@ def calculate_staff_stats(df):
             staff_days[second_staff].add(service_date)
             if second_staff == '溫?邦':
                 wen_days_log.append(f"活動日期: {service_date} (作為 2ndRespStaffName, 與 {resp_staff}, CaseNumber: {case_number})")
+            if second_staff == '徐家兒':
+                xu_second_staff_log.append(f"協作記錄: {service_date}, CaseNumber: {case_number}, RespStaff: {resp_staff}")
 
-            # 修正協作邏輯：若 CaseNumber 是任一員工的主案件，計為本區
+            # 協作邏輯：若 CaseNumber 是任一員工的主案件，計為本區
             second_main_case = staff_main_case.get(second_staff, None)
             if case_number == main_case or (second_main_case and case_number == second_main_case):
                 staff_total_stats[resp_staff]['協作'] += 1
@@ -127,9 +130,17 @@ def calculate_staff_stats(df):
         unique_dates = set([log.split(' ')[1] for log in wen_days_log])  # 提取唯一日期
         for log in wen_days_log:
             st.write(log)
-        st.write(f"溫?邦 總外展日數: {len(unique_dates)} (唯一日期數)")
+        st.write(f"溫?邦 總外展日數: {len(unique_dates)} (唯一日期數: {', '.join(sorted(unique_dates))})")
     else:
         st.write("無外展日數記錄")
+
+    # 顯示徐家兒的 2ndRespStaffName 記錄
+    st.subheader("徐家兒 作為 2ndRespStaffName 的協作記錄")
+    if xu_second_staff_log:
+        for log in xu_second_staff_log:
+            st.write(log)
+    else:
+        st.write("無 2ndRespStaffName 記錄")
 
     return combined_stats, activity_type_stats
 
