@@ -16,6 +16,9 @@ def read_csv_with_big5(file):
     st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
     file.seek(0)
     
+    # 定義所有可能的編碼
+    encodings = ['big5', 'utf-8', 'gbk']
+    
     # 檢查 UTF-8 BOM
     bom = file.read(3)
     if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
@@ -24,8 +27,7 @@ def read_csv_with_big5(file):
         sample = file.read(1024).decode(encoding)
     else:
         file.seek(0)
-        encodings = ['big5', 'utf-8', 'gbk']  # 嘗試多種編碼
-        sample = None
+        # 嘗試檢測編碼
         for enc in encodings:
             try:
                 file.seek(0)
@@ -35,7 +37,7 @@ def read_csv_with_big5(file):
                 break
             except UnicodeDecodeError:
                 st.write(f"{enc} 解碼失敗，嘗試下一個編碼...")
-        if sample is None:
+        else:
             st.error("無法確定編碼，檔案可能損壞或使用未知編碼")
             file.seek(0)
             st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
