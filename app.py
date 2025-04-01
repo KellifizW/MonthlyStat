@@ -11,6 +11,9 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
+# 必要欄位（用於統計）
+REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
+
 # 函數：兼容多種編碼的 CSV 讀取
 def read_csv_with_big5(file):
     st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
@@ -49,19 +52,28 @@ def read_csv_with_big5(file):
             file.seek(0)
             if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
                 file.read(3)  # 跳過 BOM
+            # 讀取完整數據，不預設欄位數量
             df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
             st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
-            st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
+            st.write(f"解析出的欄位數量: {len(df.columns)}")
             
-            if len(df.columns) != len(EXPECTED_COLUMNS):
-                st.write("欄位數量不匹配，調整為預定義欄位名稱")
-                if len(df.columns) > len(EXPECTED_COLUMNS):
-                    df = df.iloc[:, :len(EXPECTED_COLUMNS)]
-                df.columns = EXPECTED_COLUMNS[:len(df.columns)]
+            # 顯示原始欄位名稱
+            st.write("CSV 文件的原始欄位名稱：", list(df.columns))
+            
+            # 檢查必要欄位是否存在
+            missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+            if missing_columns:
+                st.error(f"CSV 文件缺少必要欄位: {missing_columns}")
+                st.write("請確認檔案欄位名稱與預期一致")
+                return None, None
+            
+            # 只保留 EXPECTED_COLUMNS 中存在的欄位
+            available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
+            df = df[available_columns]
+            st.write(f"保留的欄位數量: {len(df.columns)}，欄位名稱: {available_columns}")
             
             # 檢查 NumberOfSession 原始數據
-            st.write("檢查 NumberOfSession 欄位原始數據（前 5 行）：")
-            st.write(df['NumberOfSession'].head().to_dict())
+            st.write("檢查 NumberOfSession 欄位原始數據（前 5 行）：", df['NumberOfSession'].head().to_dict())
             
             # 強制轉換 NumberOfSession 為數值類型
             st.write("轉換 NumberOfSession 欄位為數值...")
@@ -71,7 +83,6 @@ def read_csv_with_big5(file):
                     st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
                     invalid_rows = df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']]
                     st.write("無效數據行：", invalid_rows.to_dict())
-                    # 將 NaN 替換為 0
                     df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
                     st.write("已將 NaN 值替換為 0")
             return df, enc
@@ -82,16 +93,13 @@ def read_csv_with_big5(file):
             raise
     
     st.error("無法讀取檔案，所有嘗試的編碼均失敗")
-    file.seek(0)
-    st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
     return None, None
 
 # 函數：計算本區和外區統計
 def calculate_staff_stats(df):
-    required_columns = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
     st.write("檔案實際欄位名稱:", list(df.columns))
-    st.write("程式預期的必要欄位:", required_columns)
-    missing_columns = [col for col in required_columns if col not in df.columns]
+    st.write("程式預期的必要欄位:", REQUIRED_COLUMNS)
+    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
         raise ValueError(f"缺少必要欄位: {missing_columns}")
 
