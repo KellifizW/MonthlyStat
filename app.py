@@ -16,10 +16,8 @@ def read_csv_with_big5(file):
     st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
     file.seek(0)
     
-    # 定義所有可能的編碼
     encodings = ['big5', 'utf-8', 'gbk']
     
-    # 檢查 UTF-8 BOM
     bom = file.read(3)
     if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
         encoding = 'utf-8'
@@ -27,7 +25,6 @@ def read_csv_with_big5(file):
         sample = file.read(1024).decode(encoding)
     else:
         file.seek(0)
-        # 嘗試檢測編碼
         for enc in encodings:
             try:
                 file.seek(0)
@@ -43,12 +40,10 @@ def read_csv_with_big5(file):
             st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
             return None, None
     
-    # 檢測分隔符
     separators = [',', '\t']
     separator = max(separators, key=lambda sep: sample.count(sep))
     st.write(f"檢測到分隔符：{separator}")
 
-    # 嘗試讀取整個檔案
     for enc in encodings:
         try:
             file.seek(0)
@@ -58,25 +53,31 @@ def read_csv_with_big5(file):
             st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
             st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
             
-            # 調整欄位數量
             if len(df.columns) != len(EXPECTED_COLUMNS):
                 st.write("欄位數量不匹配，調整為預定義欄位名稱")
                 if len(df.columns) > len(EXPECTED_COLUMNS):
                     df = df.iloc[:, :len(EXPECTED_COLUMNS)]
                 df.columns = EXPECTED_COLUMNS[:len(df.columns)]
+            
+            # 強制轉換 NumberOfSession 為數值類型
+            st.write("檢查並轉換 NumberOfSession 欄位為數值...")
+            if 'NumberOfSession' in df.columns:
+                df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
+                if df['NumberOfSession'].isnull().any():
+                    st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
+                    st.write("無效數據行：", df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']])
             return df, enc
         except UnicodeDecodeError as e:
             st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
         except Exception as e:
             st.error(f"解析錯誤: {str(e)}")
     
-    # 如果所有編碼都失敗
     st.error("無法讀取檔案，所有嘗試的編碼均失敗")
     file.seek(0)
     st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
     return None, None
 
-# 函數：計算本區和外區統計（保持不變）
+# 函數：計算本區和外區統計
 def calculate_staff_stats(df):
     required_columns = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
     st.write("檔案實際欄位名稱:", list(df.columns))
@@ -96,6 +97,7 @@ def calculate_staff_stats(df):
         resp_staff = row['RespStaff']
         second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
         case_number = row['CaseNumber']
+        number_of_session = row['NumberOfSession']
 
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
@@ -104,21 +106,28 @@ def calculate_staff_stats(df):
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
+        try:
+            # 確保 number_of_session 是數值
+            sessions = int(number_of_session) if pd.notna(number_of_session) else 0
+        except (ValueError, TypeError):
+            st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}")
+            sessions = 0
+
         if not is_collaboration:
-            staff_total_stats[resp_staff]['個人'] += row['NumberOfSession']
+            staff_total_stats[resp_staff]['個人'] += sessions
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['個人'] += row['NumberOfSession']
+                staff_outside_stats[resp_staff]['個人'] += sessions
         else:
-            staff_total_stats[resp_staff]['協作'] += row['NumberOfSession']
+            staff_total_stats[resp_staff]['協作'] += sessions
             if second_staff not in staff_total_stats:
                 staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
-            staff_total_stats[second_staff]['協作'] += row['NumberOfSession']
+            staff_total_stats[second_staff]['協作'] += sessions
 
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['協作'] += row['NumberOfSession']
+                staff_outside_stats[resp_staff]['協作'] += sessions
                 if second_staff not in staff_outside_stats:
                     staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
-                staff_outside_stats[second_staff]['協作'] += row['NumberOfSession']
+                staff_outside_stats[second_staff]['協作'] += sessions
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
