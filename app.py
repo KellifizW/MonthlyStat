@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from collections import Counter
 import io
 
 # 預定義的欄位名稱
@@ -16,7 +15,6 @@ REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSess
 
 # 函數：兼容多種編碼的 CSV 讀取
 def read_csv_with_big5(file):
-    st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
     file.seek(0)
     
     encodings = ['big5', 'utf-8', 'gbk']
@@ -24,7 +22,6 @@ def read_csv_with_big5(file):
     bom = file.read(3)
     if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
         encoding = 'utf-8'
-        st.write("檢測到 UTF-8 BOM，將使用 UTF-8 編碼")
         sample = file.read(1024).decode(encoding)
     else:
         file.seek(0)
@@ -33,19 +30,15 @@ def read_csv_with_big5(file):
                 file.seek(0)
                 sample = file.read(1024).decode(enc)
                 encoding = enc
-                st.write(f"檢測到可能的編碼：{enc}")
                 break
             except UnicodeDecodeError:
-                st.write(f"{enc} 解碼失敗，嘗試下一個編碼...")
+                continue
         else:
             st.error("無法確定編碼，檔案可能損壞或使用未知編碼")
-            file.seek(0)
-            st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
             return None, None
     
     separators = [',', '\t']
     separator = max(separators, key=lambda sep: sample.count(sep))
-    st.write(f"檢測到分隔符：{separator}")
 
     for enc in encodings:
         try:
@@ -53,35 +46,23 @@ def read_csv_with_big5(file):
             if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
                 file.read(3)  # 跳過 BOM
             df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
-            st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
-            st.write(f"解析出的欄位數量: {len(df.columns)}")
-            
-            st.write("CSV 文件的原始欄位名稱：", list(df.columns))
             
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
             if missing_columns:
                 st.error(f"CSV 文件缺少必要欄位: {missing_columns}")
-                st.write("請確認檔案欄位名稱與預期一致")
                 return None, None
             
             available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
             df = df[available_columns]
-            st.write(f"保留的欄位數量: {len(df.columns)}，欄位名稱: {available_columns}")
             
-            st.write("檢查 NumberOfSession 欄位原始數據（前 5 行）：", df['NumberOfSession'].head().to_dict())
-            
-            st.write("轉換 NumberOfSession 欄位為數值...")
             if 'NumberOfSession' in df.columns:
                 df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
                 if df['NumberOfSession'].isnull().any():
-                    st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
-                    invalid_rows = df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']]
-                    st.write("無效數據行：", invalid_rows.to_dict())
+                    st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 0")
                     df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
-                    st.write("已將 NaN 值替換為 0")
             return df, enc
-        except UnicodeDecodeError as e:
-            st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
+        except UnicodeDecodeError:
+            continue
         except Exception as e:
             st.error(f"解析錯誤: {str(e)}")
             return None, None
@@ -91,71 +72,54 @@ def read_csv_with_big5(file):
 
 # 函數：計算本區和外區統計
 def calculate_staff_stats(df):
-    st.write("檔案實際欄位名稱:", list(df.columns))
-    st.write("程式預期的必要欄位:", REQUIRED_COLUMNS)
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
         st.error(f"缺少必要欄位: {missing_columns}")
         return None, None
 
-    st.write("檢查數據完整性（是否有空值）：")
     for col in REQUIRED_COLUMNS:
         if df[col].isnull().any():
             st.warning(f"{col} 欄位中存在空值，將跳過相關行")
-            st.write(f"{col} 空值行：", df[df[col].isnull()][REQUIRED_COLUMNS].to_dict())
 
     staff_total_stats = {}
     staff_outside_stats = {}
 
-    # 計算每位員工的本區
     try:
         staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
         staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
-        st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
     except Exception as e:
         st.error(f"計算本區 CaseNumber 時發生錯誤: {str(e)}")
         return None, None
 
-    st.write("開始逐行計算統計...")
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
         case_number = row['CaseNumber']
 
-        # 檢查基本數據完整性
         if pd.isna(resp_staff) or pd.isna(case_number):
-            st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
             continue
 
-        # 初始化員工統計（無論是否協作，確保存在）
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
             staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
 
-        # 檢查第二負責人欄位
         try:
             second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
         except Exception as e:
-            st.error(f"行 {index} 處理 2ndRespStaffName 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
+            st.error(f"行 {index} 處理 2ndRespStaffName 時發生錯誤: {str(e)}")
             continue
 
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
-        # 如果沒有本區定義，視為無效數據
         if main_case is None:
-            st.warning(f"行 {index}: {resp_staff} 無本區定義，跳過")
             continue
 
         if not is_collaboration:
-            # 非協作情況
             if case_number == main_case:
                 staff_total_stats[resp_staff]['個人'] += 1
-                st.write(f"行 {index}: {resp_staff} 本區個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
             else:
                 staff_outside_stats[resp_staff]['個人'] += 1
-                st.write(f"行 {index}: {resp_staff} 外區個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
         else:
-            # 協作情況
             staff_total_stats[resp_staff]['協作'] += 1
             if second_staff:
                 if second_staff not in staff_total_stats:
@@ -166,9 +130,7 @@ def calculate_staff_stats(df):
                 if case_number != main_case:
                     staff_outside_stats[resp_staff]['協作'] += 1
                     staff_outside_stats[second_staff]['協作'] += 1
-            st.write(f"行 {index}: {resp_staff} 協作 +1, {second_staff} 協作 +1 (CaseNumber: {case_number}, 本區: {main_case})")
 
-    st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
 
 # Streamlit 主介面
