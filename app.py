@@ -97,17 +97,15 @@ def calculate_staff_stats(df):
     if missing_columns:
         raise ValueError(f"缺少必要欄位: {missing_columns}")
 
-    staff_total_stats = {}
-    staff_outside_stats = {}
-
-    # 檢查數據完整性
     st.write("檢查數據完整性（是否有空值）：")
     for col in REQUIRED_COLUMNS:
         if df[col].isnull().any():
             st.warning(f"{col} 欄位中存在空值，將跳過相關行")
             st.write(f"{col} 空值行：", df[df[col].isnull()][REQUIRED_COLUMNS].to_dict())
 
-    # 計算每位員工的本區 CaseNumber
+    staff_total_stats = {}
+    staff_outside_stats = {}
+
     try:
         staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
         staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
@@ -116,7 +114,7 @@ def calculate_staff_stats(df):
         st.error(f"計算本區 CaseNumber 時發生錯誤: {str(e)}")
         return None, None
 
-    # 迭代計算統計
+    st.write("開始逐行計算統計...")
     for index, row in df.iterrows():
         try:
             resp_staff = row['RespStaff']
@@ -124,9 +122,8 @@ def calculate_staff_stats(df):
             case_number = row['CaseNumber']
             number_of_session = row['NumberOfSession']
 
-            # 跳過無效行
             if pd.isna(resp_staff) or pd.isna(case_number):
-                st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過")
+                st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
                 continue
 
             if resp_staff not in staff_total_stats:
@@ -135,13 +132,13 @@ def calculate_staff_stats(df):
 
             is_collaboration = bool(second_staff)
             main_case = staff_main_case.get(resp_staff, None)
-
-            sessions = int(number_of_session)  # NumberOfSession 已轉為整數
+            sessions = int(number_of_session)
 
             if not is_collaboration:
                 staff_total_stats[resp_staff]['個人'] += sessions
                 if main_case and case_number != main_case:
                     staff_outside_stats[resp_staff]['個人'] += sessions
+                st.write(f"行 {index}: {resp_staff} 個人 +{sessions} (CaseNumber: {case_number}, 本區: {main_case})")
             else:
                 staff_total_stats[resp_staff]['協作'] += sessions
                 if second_staff:
@@ -154,6 +151,7 @@ def calculate_staff_stats(df):
                         if second_staff not in staff_outside_stats:
                             staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
                         staff_outside_stats[second_staff]['協作'] += sessions
+                st.write(f"行 {index}: {resp_staff} 協作 +{sessions}, {second_staff} 協作 +{sessions} (CaseNumber: {case_number}, 本區: {main_case})")
 
         except Exception as e:
             st.error(f"處理行 {index} 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
@@ -181,7 +179,6 @@ def main():
             st.write("以下是前幾行數據：")
             st.dataframe(df.head())
 
-            # 提供下載按鈕以檢查解析後的數據
             csv_buffer = io.StringIO()
             df.to_csv(csv_buffer, index=False, encoding=used_encoding)
             st.download_button(
