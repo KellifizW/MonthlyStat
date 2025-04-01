@@ -3,7 +3,7 @@ import pandas as pd
 from collections import Counter
 import io
 
-# 預定義的欄位名稱（保持不變）
+# 預定義的欄位名稱
 EXPECTED_COLUMNS = [
     'CaseNumber', 'RespStaffLogin', 'RespStaff', '2ndRespStaffLoginID', '2ndRespStaffName',
     'CoachedStaffLogin', 'CoachedStaff', 'Dept', 'Id', 'ServiceDate', 'ServiceTime',
@@ -11,9 +11,9 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
-# 函數：兼容 Big5 和 UTF-8 BOM 的 CSV 讀取
+# 函數：兼容多種編碼的 CSV 讀取
 def read_csv_with_big5(file):
-    st.write("開始讀取 CSV 檔案（支援 Big5 和 UTF-8 BOM）...")
+    st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
     file.seek(0)
     
     # 檢查 UTF-8 BOM
@@ -23,45 +23,56 @@ def read_csv_with_big5(file):
         st.write("檢測到 UTF-8 BOM，將使用 UTF-8 編碼")
         sample = file.read(1024).decode(encoding)
     else:
-        encoding = 'big5'
-        file.seek(0)  # 重置文件指針
-        try:
-            sample = file.read(1024).decode(encoding, errors='replace')
-            st.write("未檢測到 BOM，假設使用 Big5 編碼")
-        except UnicodeDecodeError:
-            st.write("Big5 解碼失敗，嘗試使用 UTF-8 編碼")
+        file.seek(0)
+        encodings = ['big5', 'utf-8', 'gbk']  # 嘗試多種編碼
+        sample = None
+        for enc in encodings:
+            try:
+                file.seek(0)
+                sample = file.read(1024).decode(enc)
+                encoding = enc
+                st.write(f"檢測到可能的編碼：{enc}")
+                break
+            except UnicodeDecodeError:
+                st.write(f"{enc} 解碼失敗，嘗試下一個編碼...")
+        if sample is None:
+            st.error("無法確定編碼，檔案可能損壞或使用未知編碼")
             file.seek(0)
-            encoding = 'utf-8'
-            sample = file.read(1024).decode(encoding, errors='replace')
+            st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
+            return None, None
     
     # 檢測分隔符
     separators = [',', '\t']
     separator = max(separators, key=lambda sep: sample.count(sep))
     st.write(f"檢測到分隔符：{separator}")
 
-    try:
-        # 根據檢測到的編碼讀取檔案
-        file.seek(0)
-        if encoding == 'utf-8' and bom == b'\xef\xbb\xbf':
-            file.read(3)  # 跳過 BOM
-        df = pd.read_csv(file, encoding=encoding, sep=separator, on_bad_lines='warn')
-        st.write(f"成功使用 {encoding} 編碼讀取檔案（分隔符：{separator}）")
-        st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
-        
-        # 調整欄位數量
-        if len(df.columns) != len(EXPECTED_COLUMNS):
-            st.write("欄位數量不匹配，調整為預定義欄位名稱")
-            if len(df.columns) > len(EXPECTED_COLUMNS):
-                df = df.iloc[:, :len(EXPECTED_COLUMNS)]
-            df.columns = EXPECTED_COLUMNS[:len(df.columns)]
-        return df, encoding
-    except Exception as e:
-        st.error(f"無法讀取檔案: {str(e)}")
-        file.seek(0)
-        if encoding == 'utf-8' and bom == b'\xef\xbb\xbf':
-            file.read(3)  # 跳過 BOM
-        st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode(encoding, errors='replace'))
-        return None, None
+    # 嘗試讀取整個檔案
+    for enc in encodings:
+        try:
+            file.seek(0)
+            if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
+                file.read(3)  # 跳過 BOM
+            df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
+            st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
+            st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
+            
+            # 調整欄位數量
+            if len(df.columns) != len(EXPECTED_COLUMNS):
+                st.write("欄位數量不匹配，調整為預定義欄位名稱")
+                if len(df.columns) > len(EXPECTED_COLUMNS):
+                    df = df.iloc[:, :len(EXPECTED_COLUMNS)]
+                df.columns = EXPECTED_COLUMNS[:len(df.columns)]
+            return df, enc
+        except UnicodeDecodeError as e:
+            st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
+        except Exception as e:
+            st.error(f"解析錯誤: {str(e)}")
+    
+    # 如果所有編碼都失敗
+    st.error("無法讀取檔案，所有嘗試的編碼均失敗")
+    file.seek(0)
+    st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
+    return None, None
 
 # 函數：計算本區和外區統計（保持不變）
 def calculate_staff_stats(df):
@@ -112,8 +123,8 @@ def calculate_staff_stats(df):
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (支援 Big5 和 UTF-8 BOM)")
-    st.write("請上傳使用 Big5 或 UTF-8 BOM 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (支援多種編碼)")
+    st.write("請上傳使用 Big5、UTF-8 或其他編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
