@@ -59,18 +59,27 @@ def read_csv_with_big5(file):
                     df = df.iloc[:, :len(EXPECTED_COLUMNS)]
                 df.columns = EXPECTED_COLUMNS[:len(df.columns)]
             
+            # 檢查 NumberOfSession 原始數據
+            st.write("檢查 NumberOfSession 欄位原始數據（前 5 行）：")
+            st.write(df['NumberOfSession'].head().to_dict())
+            
             # 強制轉換 NumberOfSession 為數值類型
-            st.write("檢查並轉換 NumberOfSession 欄位為數值...")
+            st.write("轉換 NumberOfSession 欄位為數值...")
             if 'NumberOfSession' in df.columns:
                 df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
                 if df['NumberOfSession'].isnull().any():
                     st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
-                    st.write("無效數據行：", df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']].to_dict())
+                    invalid_rows = df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']]
+                    st.write("無效數據行：", invalid_rows.to_dict())
+                    # 將 NaN 替換為 0
+                    df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
+                    st.write("已將 NaN 值替換為 0")
             return df, enc
         except UnicodeDecodeError as e:
             st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
         except Exception as e:
             st.error(f"解析錯誤: {str(e)}")
+            raise
     
     st.error("無法讀取檔案，所有嘗試的編碼均失敗")
     file.seek(0)
@@ -106,16 +115,11 @@ def calculate_staff_stats(df):
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
-        # 處理 NumberOfSession 的值
-        if pd.isna(number_of_session):
+        try:
+            sessions = int(number_of_session)
+        except (ValueError, TypeError) as e:
+            st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}，錯誤: {str(e)}")
             sessions = 0
-            st.warning(f"行 {index} 的 NumberOfSession 為 NaN，設為 0 (員工: {resp_staff}, CaseNumber: {case_number})")
-        else:
-            try:
-                sessions = int(number_of_session)
-            except (ValueError, TypeError) as e:
-                st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}，錯誤: {str(e)}")
-                sessions = 0
 
         if not is_collaboration:
             staff_total_stats[resp_staff]['個人'] += sessions
