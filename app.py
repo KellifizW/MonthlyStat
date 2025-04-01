@@ -126,24 +126,28 @@ def calculate_staff_stats(df):
             st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
             continue
 
-        # 初始化員工統計（在任何異常之前）
+        # 初始化員工統計（無論是否協作，確保存在）
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
             staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
 
-        # 處理第二負責人欄位
-        second_staff = None
+        # 檢查第二負責人欄位
         try:
-            if pd.notna(row['2ndRespStaffName']):
-                second_staff = row['2ndRespStaffName']
+            second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
         except Exception as e:
             st.error(f"行 {index} 處理 2ndRespStaffName 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
-            # 不跳過，繼續處理（假設為個人活動）
+            continue
 
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
+        # 如果沒有本區定義，視為無效數據
+        if main_case is None:
+            st.warning(f"行 {index}: {resp_staff} 無本區定義，跳過")
+            continue
+
         if not is_collaboration:
+            # 非協作情況
             if case_number == main_case:
                 staff_total_stats[resp_staff]['個人'] += 1
                 st.write(f"行 {index}: {resp_staff} 本區個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
@@ -151,16 +155,16 @@ def calculate_staff_stats(df):
                 staff_outside_stats[resp_staff]['個人'] += 1
                 st.write(f"行 {index}: {resp_staff} 外區個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
         else:
+            # 協作情況
             staff_total_stats[resp_staff]['協作'] += 1
             if second_staff:
                 if second_staff not in staff_total_stats:
                     staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
+                    staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
                 staff_total_stats[second_staff]['協作'] += 1
 
                 if case_number != main_case:
                     staff_outside_stats[resp_staff]['協作'] += 1
-                    if second_staff not in staff_outside_stats:
-                        staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
                     staff_outside_stats[second_staff]['協作'] += 1
             st.write(f"行 {index}: {resp_staff} 協作 +1, {second_staff} 協作 +1 (CaseNumber: {case_number}, 本區: {main_case})")
 
