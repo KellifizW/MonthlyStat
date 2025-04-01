@@ -49,6 +49,9 @@ def calculate_staff_stats(df):
     staff_total_stats = {}
     staff_outside_stats = {}
     staff_days = {}
+    
+    # 處理活動類型，排除空值
+    df['活動類型'] = df['活動類型'].fillna('未定義')  # 若有空值，標記為未定義
     activity_type_stats = df['活動類型'].value_counts().to_dict()
 
     # 確定每個員工的主要 CaseNumber（僅基於個人活動）
@@ -91,19 +94,14 @@ def calculate_staff_stats(df):
 
             staff_days[second_staff].add(service_date)
 
-            # 根據主要負責員工的主案件判定本區或外區
-            if case_number == main_case:
+            # 根據任一員工的主案件判定本區或外區
+            second_main_case = staff_main_case.get(second_staff, None)
+            if case_number == main_case or (second_main_case and case_number == second_main_case):
                 staff_total_stats[resp_staff]['協作'] += 1
                 staff_total_stats[second_staff]['協作'] += 1
             else:
-                # 如果不是主要案件，檢查第二員工的主案件
-                second_main_case = staff_main_case.get(second_staff, None)
-                if second_main_case and case_number == second_main_case:
-                    staff_total_stats[resp_staff]['協作'] += 1
-                    staff_total_stats[second_staff]['協作'] += 1
-                else:
-                    staff_outside_stats[resp_staff]['協作'] += 1
-                    staff_outside_stats[second_staff]['協作'] += 1
+                staff_outside_stats[resp_staff]['協作'] += 1
+                staff_outside_stats[second_staff]['協作'] += 1
 
     staff_days = {staff: len(days) for staff, days in staff_days.items()}
     return staff_total_stats, staff_outside_stats, staff_days, activity_type_stats
