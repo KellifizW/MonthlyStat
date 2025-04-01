@@ -3,7 +3,7 @@ import pandas as pd
 from collections import Counter
 import io
 
-# 預定義的欄位名稱
+# 預定義的欄位名稱（保持不變）
 EXPECTED_COLUMNS = [
     'CaseNumber', 'RespStaffLogin', 'RespStaff', '2ndRespStaffLoginID', '2ndRespStaffName',
     'CoachedStaffLogin', 'CoachedStaff', 'Dept', 'Id', 'ServiceDate', 'ServiceTime',
@@ -21,36 +21,30 @@ def read_csv_with_big5(file):
     file.seek(0)
     
     # 檢測分隔符：逗號或制表符
-    if ',' in sample and sample.count(',') > sample.count('\t'):
-        separator = ','
-        st.write("檢測到分隔符：逗號 (',')")
-    else:
-        separator = '\t'
-        st.write("檢測到分隔符：制表符 ('\\t')")
+    separators = [',', '\t']
+    separator = max(separators, key=lambda sep: sample.count(sep))
+    st.write(f"檢測到分隔符：{separator}")
 
     try:
-        # 嘗試標準 Big5 編碼
-        df = pd.read_csv(file, encoding='big5', sep=separator)
+        # 嘗試讀取整個檔案，允許額外欄位
+        df = pd.read_csv(file, encoding='big5', sep=separator, on_bad_lines='warn')
         st.write(f"成功使用標準 Big5 編碼讀取檔案（分隔符：{separator}）")
         st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
+        
+        # 如果欄位數量不匹配，截取或填充到預定義欄位
         if len(df.columns) != len(EXPECTED_COLUMNS):
-            st.write("欄位數量不匹配，設置預定義欄位名稱")
-            file.seek(0)
-            df = pd.read_csv(file, encoding='big5', sep=separator, names=EXPECTED_COLUMNS, header=0)
+            st.write("欄位數量不匹配，調整為預定義欄位名稱")
+            if len(df.columns) > len(EXPECTED_COLUMNS):
+                df = df.iloc[:, :len(EXPECTED_COLUMNS)]  # 截取前 N 個欄位
+            df.columns = EXPECTED_COLUMNS[:len(df.columns)]  # 強制設置欄位名稱
         return df, 'big5'
-    except UnicodeDecodeError:
-        file.seek(0)
-        content = file.read().decode('big5', errors='replace')
-        df = pd.read_csv(io.StringIO(content), sep=separator, names=EXPECTED_COLUMNS, header=0)
-        st.write(f"成功使用 Big5 編碼（忽略無效字符）讀取檔案（分隔符：{separator}）")
-        return df, 'big5 (with error replacement)'
     except Exception as e:
         st.error(f"無法讀取檔案: {str(e)}")
         file.seek(0)
         st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode('big5', errors='replace'))
         return None, None
 
-# 函數：計算本區和外區統計
+# 函數：計算本區和外區統計（改進容錯性）
 def calculate_staff_stats(df):
     required_columns = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
     st.write("檔案實際欄位名稱:", list(df.columns))
@@ -59,15 +53,15 @@ def calculate_staff_stats(df):
     if missing_columns:
         raise ValueError(f"缺少必要欄位: {missing_columns}")
 
-    st.write("開始計算每位員工的本區...")
     staff_total_stats = {}
     staff_outside_stats = {}
 
+    # 計算每個員工的主要 CaseNumber
     staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
     st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
 
-    st.write("開始遍歷數據，計算個人與協作次數...")
+    # 遍歷數據，計算統計
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
         second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
@@ -81,28 +75,28 @@ def calculate_staff_stats(df):
         main_case = staff_main_case.get(resp_staff)
 
         if not is_collaboration:
-            staff_total_stats[resp_staff]['個人'] += 1
+            staff_total_stats[resp_staff]['個人'] += row['NumberOfSession']
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['個人'] += 1
+                staff_outside_stats[resp_staff]['個人'] += row['NumberOfSession']
         else:
-            staff_total_stats[resp_staff]['協作'] += 1
+            staff_total_stats[resp_staff]['協作'] += row['NumberOfSession']
             if second_staff not in staff_total_stats:
                 staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
-            staff_total_stats[second_staff]['協作'] += 1
+            staff_total_stats[second_staff]['協作'] += row['NumberOfSession']
 
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['協作'] += 1
+                staff_outside_stats[resp_staff]['協作'] += row['NumberOfSession']
                 if second_staff not in staff_outside_stats:
                     staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
-                staff_outside_stats[second_staff]['協作'] += 1
+                staff_outside_stats[second_staff]['協作'] += row['NumberOfSession']
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (Big5 編碼，支援逗號與制表符)")
-    st.write("請上傳使用 Big5 編碼的 CSV 檔案（支援逗號或制表符分隔）以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (Big5 編碼，支援多欄位 CSV)")
+    st.write("請上傳使用 Big5 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
@@ -117,6 +111,16 @@ def main():
             st.write(f"檔案成功解析，使用編碼: {used_encoding}")
             st.write("以下是前幾行數據：")
             st.dataframe(df.head())
+
+            # 提供下載按鈕以檢查解析後的數據
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False, encoding='big5')
+            st.download_button(
+                label="下載解析後的 CSV",
+                data=csv_buffer.getvalue(),
+                file_name="parsed_data.csv",
+                mime="text/csv"
+            )
 
             staff_total_stats, staff_outside_stats = calculate_staff_stats(df)
 
