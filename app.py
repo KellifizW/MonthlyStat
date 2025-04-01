@@ -11,71 +11,44 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
-# 函數：兼容多種編碼的 CSV 讀取
+# 函數：自動檢測分隔符並使用 Big5 編碼讀取 CSV
 def read_csv_with_big5(file):
-    st.write("開始讀取 CSV 檔案（支援 Big5、UTF-8 BOM 和 UTF-8）...")
+    st.write("開始讀取 Big5 編碼的 CSV 檔案...")
     file.seek(0)
     
-    encodings = ['big5', 'utf-8', 'gbk']
+    # 讀取檔案開頭以檢測分隔符
+    sample = file.read(1024).decode('big5', errors='replace')  # 讀取前 1024 字節
+    file.seek(0)
     
-    bom = file.read(3)
-    if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
-        encoding = 'utf-8'
-        st.write("檢測到 UTF-8 BOM，將使用 UTF-8 編碼")
-        sample = file.read(1024).decode(encoding)
+    # 檢測分隔符：逗號或制表符
+    if ',' in sample and sample.count(',') > sample.count('\t'):
+        separator = ','
+        st.write("檢測到分隔符：逗號 (',')")
     else:
-        file.seek(0)
-        for enc in encodings:
-            try:
-                file.seek(0)
-                sample = file.read(1024).decode(enc)
-                encoding = enc
-                st.write(f"檢測到可能的編碼：{enc}")
-                break
-            except UnicodeDecodeError:
-                st.write(f"{enc} 解碼失敗，嘗試下一個編碼...")
-        else:
-            st.error("無法確定編碼，檔案可能損壞或使用未知編碼")
-            file.seek(0)
-            st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
-            return None, None
-    
-    separators = [',', '\t']
-    separator = max(separators, key=lambda sep: sample.count(sep))
-    st.write(f"檢測到分隔符：{separator}")
+        separator = '\t'
+        st.write("檢測到分隔符：制表符 ('\\t')")
 
-    for enc in encodings:
-        try:
+    try:
+        # 嘗試標準 Big5 編碼
+        df = pd.read_csv(file, encoding='big5', sep=separator)
+        st.write(f"成功使用標準 Big5 編碼讀取檔案（分隔符：{separator}）")
+        st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
+        if len(df.columns) != len(EXPECTED_COLUMNS):
+            st.write("欄位數量不匹配，設置預定義欄位名稱")
             file.seek(0)
-            if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
-                file.read(3)  # 跳過 BOM
-            df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
-            st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
-            st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
-            
-            if len(df.columns) != len(EXPECTED_COLUMNS):
-                st.write("欄位數量不匹配，調整為預定義欄位名稱")
-                if len(df.columns) > len(EXPECTED_COLUMNS):
-                    df = df.iloc[:, :len(EXPECTED_COLUMNS)]
-                df.columns = EXPECTED_COLUMNS[:len(df.columns)]
-            
-            # 強制轉換 NumberOfSession 為數值類型
-            st.write("檢查並轉換 NumberOfSession 欄位為數值...")
-            if 'NumberOfSession' in df.columns:
-                df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
-                if df['NumberOfSession'].isnull().any():
-                    st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
-                    st.write("無效數據行：", df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']].to_dict())
-            return df, enc
-        except UnicodeDecodeError as e:
-            st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
-        except Exception as e:
-            st.error(f"解析錯誤: {str(e)}")
-    
-    st.error("無法讀取檔案，所有嘗試的編碼均失敗")
-    file.seek(0)
-    st.write("檔案前 500 字節（以 latin1 強制解碼）：", file.read()[:500].decode('latin1'))
-    return None, None
+            df = pd.read_csv(file, encoding='big5', sep=separator, names=EXPECTED_COLUMNS, header=0)
+        return df, 'big5'
+    except UnicodeDecodeError:
+        file.seek(0)
+        content = file.read().decode('big5', errors='replace')
+        df = pd.read_csv(io.StringIO(content), sep=separator, names=EXPECTED_COLUMNS, header=0)
+        st.write(f"成功使用 Big5 編碼（忽略無效字符）讀取檔案（分隔符：{separator}）")
+        return df, 'big5 (with error replacement)'
+    except Exception as e:
+        st.error(f"無法讀取檔案: {str(e)}")
+        file.seek(0)
+        st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode('big5', errors='replace'))
+        return None, None
 
 # 函數：計算本區和外區統計
 def calculate_staff_stats(df):
@@ -86,6 +59,7 @@ def calculate_staff_stats(df):
     if missing_columns:
         raise ValueError(f"缺少必要欄位: {missing_columns}")
 
+    st.write("開始計算每位員工的本區...")
     staff_total_stats = {}
     staff_outside_stats = {}
 
@@ -93,11 +67,11 @@ def calculate_staff_stats(df):
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
     st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
 
+    st.write("開始遍歷數據，計算個人與協作次數...")
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
         second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
         case_number = row['CaseNumber']
-        number_of_session = row['NumberOfSession']
 
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
@@ -106,40 +80,29 @@ def calculate_staff_stats(df):
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
-        # 處理 NumberOfSession 的值
-        if pd.isna(number_of_session):
-            sessions = 0
-            st.warning(f"行 {index} 的 NumberOfSession 為 NaN，設為 0 (員工: {resp_staff}, CaseNumber: {case_number})")
-        else:
-            try:
-                sessions = int(number_of_session)
-            except (ValueError, TypeError) as e:
-                st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}，錯誤: {str(e)}")
-                sessions = 0
-
         if not is_collaboration:
-            staff_total_stats[resp_staff]['個人'] += sessions
+            staff_total_stats[resp_staff]['個人'] += 1
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['個人'] += sessions
+                staff_outside_stats[resp_staff]['個人'] += 1
         else:
-            staff_total_stats[resp_staff]['協作'] += sessions
+            staff_total_stats[resp_staff]['協作'] += 1
             if second_staff not in staff_total_stats:
                 staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
-            staff_total_stats[second_staff]['協作'] += sessions
+            staff_total_stats[second_staff]['協作'] += 1
 
             if case_number != main_case:
-                staff_outside_stats[resp_staff]['協作'] += sessions
+                staff_outside_stats[resp_staff]['協作'] += 1
                 if second_staff not in staff_outside_stats:
                     staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
-                staff_outside_stats[second_staff]['協作'] += sessions
+                staff_outside_stats[second_staff]['協作'] += 1
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (支援多種編碼)")
-    st.write("請上傳使用 Big5、UTF-8 或其他編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (Big5 編碼，支援逗號與制表符)")
+    st.write("請上傳使用 Big5 編碼的 CSV 檔案（支援逗號或制表符分隔）以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
@@ -148,22 +111,12 @@ def main():
         try:
             df, used_encoding = read_csv_with_big5(uploaded_file)
             if df is None:
-                st.error("無法讀取檔案，請檢查檔案是否為有效的 CSV")
+                st.error("無法讀取檔案，請檢查檔案是否為有效的 Big5 編碼 CSV")
                 return
 
             st.write(f"檔案成功解析，使用編碼: {used_encoding}")
             st.write("以下是前幾行數據：")
             st.dataframe(df.head())
-
-            # 提供下載按鈕以檢查解析後的數據
-            csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False, encoding=used_encoding)
-            st.download_button(
-                label="下載解析後的 CSV",
-                data=csv_buffer.getvalue(),
-                file_name="parsed_data.csv",
-                mime="text/csv"
-            )
 
             staff_total_stats, staff_outside_stats = calculate_staff_stats(df)
 
