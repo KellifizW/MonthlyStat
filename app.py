@@ -11,40 +11,59 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
-# 函數：自動檢測分隔符並使用 Big5 編碼讀取 CSV
+# 函數：兼容 Big5 和 UTF-8 BOM 的 CSV 讀取
 def read_csv_with_big5(file):
-    st.write("開始讀取 Big5 編碼的 CSV 檔案...")
+    st.write("開始讀取 CSV 檔案（支援 Big5 和 UTF-8 BOM）...")
     file.seek(0)
     
-    # 讀取檔案開頭以檢測分隔符
-    sample = file.read(1024).decode('big5', errors='replace')  # 讀取前 1024 字節
-    file.seek(0)
+    # 檢查 UTF-8 BOM
+    bom = file.read(3)
+    if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
+        encoding = 'utf-8'
+        st.write("檢測到 UTF-8 BOM，將使用 UTF-8 編碼")
+        sample = file.read(1024).decode(encoding)
+    else:
+        encoding = 'big5'
+        file.seek(0)  # 重置文件指針
+        try:
+            sample = file.read(1024).decode(encoding, errors='replace')
+            st.write("未檢測到 BOM，假設使用 Big5 編碼")
+        except UnicodeDecodeError:
+            st.write("Big5 解碼失敗，嘗試使用 UTF-8 編碼")
+            file.seek(0)
+            encoding = 'utf-8'
+            sample = file.read(1024).decode(encoding, errors='replace')
     
-    # 檢測分隔符：逗號或制表符
+    # 檢測分隔符
     separators = [',', '\t']
     separator = max(separators, key=lambda sep: sample.count(sep))
     st.write(f"檢測到分隔符：{separator}")
 
     try:
-        # 嘗試讀取整個檔案，允許額外欄位
-        df = pd.read_csv(file, encoding='big5', sep=separator, on_bad_lines='warn')
-        st.write(f"成功使用標準 Big5 編碼讀取檔案（分隔符：{separator}）")
+        # 根據檢測到的編碼讀取檔案
+        file.seek(0)
+        if encoding == 'utf-8' and bom == b'\xef\xbb\xbf':
+            file.read(3)  # 跳過 BOM
+        df = pd.read_csv(file, encoding=encoding, sep=separator, on_bad_lines='warn')
+        st.write(f"成功使用 {encoding} 編碼讀取檔案（分隔符：{separator}）")
         st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
         
-        # 如果欄位數量不匹配，截取或填充到預定義欄位
+        # 調整欄位數量
         if len(df.columns) != len(EXPECTED_COLUMNS):
             st.write("欄位數量不匹配，調整為預定義欄位名稱")
             if len(df.columns) > len(EXPECTED_COLUMNS):
-                df = df.iloc[:, :len(EXPECTED_COLUMNS)]  # 截取前 N 個欄位
-            df.columns = EXPECTED_COLUMNS[:len(df.columns)]  # 強制設置欄位名稱
-        return df, 'big5'
+                df = df.iloc[:, :len(EXPECTED_COLUMNS)]
+            df.columns = EXPECTED_COLUMNS[:len(df.columns)]
+        return df, encoding
     except Exception as e:
         st.error(f"無法讀取檔案: {str(e)}")
         file.seek(0)
-        st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode('big5', errors='replace'))
+        if encoding == 'utf-8' and bom == b'\xef\xbb\xbf':
+            file.read(3)  # 跳過 BOM
+        st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode(encoding, errors='replace'))
         return None, None
 
-# 函數：計算本區和外區統計（改進容錯性）
+# 函數：計算本區和外區統計（保持不變）
 def calculate_staff_stats(df):
     required_columns = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
     st.write("檔案實際欄位名稱:", list(df.columns))
@@ -56,12 +75,10 @@ def calculate_staff_stats(df):
     staff_total_stats = {}
     staff_outside_stats = {}
 
-    # 計算每個員工的主要 CaseNumber
     staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
     st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
 
-    # 遍歷數據，計算統計
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
         second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
@@ -95,8 +112,8 @@ def calculate_staff_stats(df):
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (Big5 編碼，支援多欄位 CSV)")
-    st.write("請上傳使用 Big5 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (支援 Big5 和 UTF-8 BOM)")
+    st.write("請上傳使用 Big5 或 UTF-8 BOM 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
@@ -105,7 +122,7 @@ def main():
         try:
             df, used_encoding = read_csv_with_big5(uploaded_file)
             if df is None:
-                st.error("無法讀取檔案，請檢查檔案是否為有效的 Big5 編碼 CSV")
+                st.error("無法讀取檔案，請檢查檔案是否為有效的 CSV")
                 return
 
             st.write(f"檔案成功解析，使用編碼: {used_encoding}")
@@ -114,7 +131,7 @@ def main():
 
             # 提供下載按鈕以檢查解析後的數據
             csv_buffer = io.StringIO()
-            df.to_csv(csv_buffer, index=False, encoding='big5')
+            df.to_csv(csv_buffer, index=False, encoding=used_encoding)
             st.download_button(
                 label="下載解析後的 CSV",
                 data=csv_buffer.getvalue(),
