@@ -37,10 +37,10 @@ def detect_file_info(file):
     }
 
 # 函數：兼容多種編碼的 CSV 讀取
-def read_csv_with_big5(file, manual_encoding=None):
+def read_csv_with_big5(file, manual_encoding=None, ignore_errors=False):
     file.seek(0)
     
-    encodings = ['big5', 'utf-8', 'gbk']
+    encodings = ['big5', 'big5hkscs', 'utf-8', 'gbk', 'windows-1252']
     if manual_encoding:
         encodings = [manual_encoding] + [enc for enc in encodings if enc != manual_encoding]
     
@@ -75,7 +75,8 @@ def read_csv_with_big5(file, manual_encoding=None):
             file.seek(0)
             if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
                 file.read(3)
-            df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
+            error_handling = 'ignore' if ignore_errors else 'strict'
+            df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn', encoding_errors=error_handling)
             
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
             if missing_columns:
@@ -90,6 +91,8 @@ def read_csv_with_big5(file, manual_encoding=None):
                 if df['NumberOfSession'].isnull().any():
                     st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 0")
                     df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
+            if ignore_errors:
+                st.warning(f"已忽略編碼錯誤，使用 {enc} 強制載入檔案，數據可能不完整")
             return df, enc
         except UnicodeDecodeError as e:
             st.warning(f"編碼 {enc} 解碼失敗: {str(e)}")
@@ -183,11 +186,12 @@ def main():
     st.write("請上傳使用 Big5、UTF-8 或其他編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
-    manual_encoding = st.selectbox("手動指定編碼（可選）", [None, 'big5', 'utf-8', 'gbk', 'utf-16', 'windows-1252'], index=0)
+    manual_encoding = st.selectbox("手動指定編碼（可選）", [None, 'big5', 'big5hkscs', 'utf-8', 'gbk', 'windows-1252'], index=0)
+    ignore_errors = st.checkbox("忽略編碼錯誤並強制載入（可能導致數據丟失）", value=False)
 
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
-        df, used_encoding = read_csv_with_big5(uploaded_file, manual_encoding)
+        df, used_encoding = read_csv_with_big5(uploaded_file, manual_encoding, ignore_errors)
         if df is None:
             return
 
