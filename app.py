@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import chardet
 import magic
+import traceback
 
 # 預定義的欄位名稱
 EXPECTED_COLUMNS = [
@@ -18,15 +19,13 @@ REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSess
 # 函數：檢測檔案編碼和類型
 def detect_file_info(file):
     file.seek(0)
-    raw_data = file.read(1024)  # 讀取前 1024 字節進行檢測
+    raw_data = file.read(1024)
     file.seek(0)
     
-    # 使用 chardet 檢測編碼
     encoding_result = chardet.detect(raw_data)
     detected_encoding = encoding_result['encoding']
     encoding_confidence = encoding_result['confidence']
     
-    # 使用 python-magic 檢測檔案類型
     mime_detector = magic.Magic(mime=True)
     file_type = mime_detector.from_buffer(raw_data)
     
@@ -38,13 +37,15 @@ def detect_file_info(file):
     }
 
 # 函數：兼容多種編碼的 CSV 讀取
-def read_csv_with_big5(file):
+def read_csv_with_big5(file, manual_encoding=None):
     file.seek(0)
     
     encodings = ['big5', 'utf-8', 'gbk']
+    if manual_encoding:
+        encodings = [manual_encoding] + [enc for enc in encodings if enc != manual_encoding]
     
     bom = file.read(3)
-    if bom == b'\xef\xbb\xbf':  # UTF-8 BOM
+    if bom == b'\xef\xbb\xbf':
         encoding = 'utf-8'
         sample = file.read(1024).decode(encoding)
     else:
@@ -73,7 +74,7 @@ def read_csv_with_big5(file):
         try:
             file.seek(0)
             if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
-                file.read(3)  # 跳過 BOM
+                file.read(3)
             df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
             
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
@@ -90,7 +91,8 @@ def read_csv_with_big5(file):
                     st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 0")
                     df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
             return df, enc
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as e:
+            st.warning(f"編碼 {enc} 解碼失敗: {str(e)}")
             continue
         except Exception as e:
             file_info = detect_file_info(file)
@@ -100,6 +102,8 @@ def read_csv_with_big5(file):
             st.write(f"- 檔案類型: {file_info['file_type']}")
             st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
             st.write(f"錯誤詳情: {str(e)}")
+            st.write("完整錯誤堆棧:")
+            st.write(traceback.format_exc())
             return None, None
     
     file_info = detect_file_info(file)
@@ -179,10 +183,11 @@ def main():
     st.write("請上傳使用 Big5、UTF-8 或其他編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
+    manual_encoding = st.selectbox("手動指定編碼（可選）", [None, 'big5', 'utf-8', 'gbk', 'utf-16', 'windows-1252'], index=0)
 
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
-        df, used_encoding = read_csv_with_big5(uploaded_file)
+        df, used_encoding = read_csv_with_big5(uploaded_file, manual_encoding)
         if df is None:
             return
 
