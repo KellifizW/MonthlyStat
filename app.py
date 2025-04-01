@@ -89,7 +89,7 @@ def read_csv_with_big5(file):
     st.error("無法讀取檔案，所有嘗試的編碼均失敗")
     return None, None
 
-# 函數：計算本區和外區統計（恢復最初邏輯）
+# 函數：計算本區和外區統計
 def calculate_staff_stats(df):
     st.write("檔案實際欄位名稱:", list(df.columns))
     st.write("程式預期的必要欄位:", REQUIRED_COLUMNS)
@@ -116,39 +116,43 @@ def calculate_staff_stats(df):
 
     st.write("開始逐行計算統計...")
     for index, row in df.iterrows():
-        resp_staff = row['RespStaff']
-        second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
-        case_number = row['CaseNumber']
+        try:
+            resp_staff = row['RespStaff']
+            second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
+            case_number = row['CaseNumber']
 
-        if pd.isna(resp_staff) or pd.isna(case_number):
-            st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
-            continue
+            if pd.isna(resp_staff) or pd.isna(case_number):
+                st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
+                continue
 
-        if resp_staff not in staff_total_stats:
-            staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
-            staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
+            if resp_staff not in staff_total_stats:
+                staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
+                staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
 
-        is_collaboration = bool(second_staff)
-        main_case = staff_main_case.get(resp_staff)
+            is_collaboration = bool(second_staff)
+            main_case = staff_main_case.get(resp_staff)
 
-        if not is_collaboration:
-            staff_total_stats[resp_staff]['個人'] += 1
-            if case_number != main_case:
-                staff_outside_stats[resp_staff]['個人'] += 1
-            st.write(f"行 {index}: {resp_staff} 個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
-        else:
-            staff_total_stats[resp_staff]['協作'] += 1
-            if second_staff:
-                if second_staff not in staff_total_stats:
-                    staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
-                staff_total_stats[second_staff]['協作'] += 1
-
+            if not is_collaboration:
+                staff_total_stats[resp_staff]['個人'] += 1
                 if case_number != main_case:
-                    staff_outside_stats[resp_staff]['協作'] += 1
-                    if second_staff not in staff_outside_stats:
-                        staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
-                    staff_outside_stats[second_staff]['協作'] += 1
-            st.write(f"行 {index}: {resp_staff} 協作 +1, {second_staff} 協作 +1 (CaseNumber: {case_number}, 本區: {main_case})")
+                    staff_outside_stats[resp_staff]['個人'] += 1
+                st.write(f"行 {index}: {resp_staff} 個人 +1 (CaseNumber: {case_number}, 本區: {main_case})")
+            else:
+                staff_total_stats[resp_staff]['協作'] += 1
+                if second_staff:
+                    if second_staff not in staff_total_stats:
+                        staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
+                    staff_total_stats[second_staff]['協作'] += 1
+
+                    if case_number != main_case:
+                        staff_outside_stats[resp_staff]['協作'] += 1
+                        if second_staff not in staff_outside_stats:
+                            staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
+                        staff_outside_stats[second_staff]['協作'] += 1
+                st.write(f"行 {index}: {resp_staff} 協作 +1, {second_staff} 協作 +1 (CaseNumber: {case_number}, 本區: {main_case})")
+        except Exception as e:
+            st.error(f"處理行 {index} 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
+            continue
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
