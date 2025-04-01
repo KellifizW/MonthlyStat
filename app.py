@@ -11,32 +11,26 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
-# 函數：使用 Big5 編碼讀取 CSV，並提供容錯
+# 函數：使用 Big5 編碼讀取 CSV，簡化訊息
 def read_csv_with_big5(file):
-    st.write("已知檔案使用 Big5 編碼，開始讀取...")
+    st.write("開始讀取 Big5 編碼的 CSV 檔案...")
     file.seek(0)
     try:
-        # 先嘗試標準 Big5 編碼，指定分隔符為制表符
         df = pd.read_csv(file, encoding='big5', sep='\t')
-        st.write("成功使用標準 Big5 編碼讀取檔案（分隔符：制表符）")
-        # 如果欄位數量不匹配，手動設置欄位名稱
+        st.write("成功使用標準 Big5 編碼讀取檔案")
         if len(df.columns) != len(EXPECTED_COLUMNS):
-            st.write("欄位數量不匹配，嘗試手動設置欄位名稱")
+            st.write("欄位數量不匹配，設置預定義欄位名稱")
             file.seek(0)
             df = pd.read_csv(file, encoding='big5', sep='\t', names=EXPECTED_COLUMNS, header=0)
         return df, 'big5'
-    except UnicodeDecodeError as ude:
-        st.write(f"標準 Big5 編碼失敗，錯誤信息: {str(ude)}")
-        st.write("嘗試使用 Big5 並忽略無效字符...")
+    except UnicodeDecodeError:
         file.seek(0)
         content = file.read().decode('big5', errors='replace')
         df = pd.read_csv(io.StringIO(content), sep='\t', names=EXPECTED_COLUMNS, header=0)
-        st.write("成功使用 Big5 (忽略無效字符) 讀取檔案")
+        st.write("成功使用 Big5 編碼（忽略無效字符）讀取檔案")
         return df, 'big5 (with error replacement)'
     except Exception as e:
-        st.error(f"無法使用 Big5 讀取檔案: {str(e)}")
-        file.seek(0)
-        st.write("檔案原始內容（前 500 字符）：", file.read()[:500].decode('big5', errors='replace'))
+        st.error(f"無法讀取檔案: {str(e)}")
         return None, None
 
 # 函數：計算本區和外區統計
