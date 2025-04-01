@@ -118,7 +118,6 @@ def calculate_staff_stats(df):
 
     st.write("開始逐行計算統計...")
     for index, row in df.iterrows():
-        # 只在必要處使用 try-except
         resp_staff = row['RespStaff']
         case_number = row['CaseNumber']
 
@@ -127,17 +126,19 @@ def calculate_staff_stats(df):
             st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過: {row[REQUIRED_COLUMNS].to_dict()}")
             continue
 
-        # 初始化員工統計
+        # 初始化員工統計（在任何異常之前）
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
             staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
 
-        # 檢查第二負責人欄位
+        # 處理第二負責人欄位
+        second_staff = None
         try:
-            second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
+            if pd.notna(row['2ndRespStaffName']):
+                second_staff = row['2ndRespStaffName']
         except Exception as e:
             st.error(f"行 {index} 處理 2ndRespStaffName 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
-            continue
+            # 不跳過，繼續處理（假設為個人活動）
 
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
