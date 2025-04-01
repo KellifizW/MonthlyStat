@@ -35,6 +35,8 @@ def read_csv_with_big5(file):
         available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
         df = df[available_columns]
         df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce').fillna(0).astype(int)
+        # 去重數據，避免重複計數
+        df = df.drop_duplicates(subset=['RespStaff', '2ndRespStaffName', 'CaseNumber', 'ServiceDate'])
         return df, encoding
     except Exception as e:
         st.error(f"無法讀取檔案，請檢查檔案是否為有效的 CSV: {str(e)}")
@@ -50,7 +52,6 @@ def calculate_staff_stats(df):
     staff_outside_stats = {}
     staff_days = {}
     
-    # 處理活動類型，排除空值
     df['活動類型'] = df['活動類型'].fillna('未定義')
     activity_type_stats = df['活動類型'].value_counts().to_dict()
 
@@ -58,7 +59,7 @@ def calculate_staff_stats(df):
     staff_case_counts = df[df['2ndRespStaffName'].isna()].groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
 
-    # 用於記錄溫?邦的本區協作計算步驟
+    # 記錄溫?邦的計算步驟
     wen_collaboration_log = []
     wen_days_log = []
 
@@ -71,7 +72,6 @@ def calculate_staff_stats(df):
         if pd.isna(resp_staff) or pd.isna(case_number) or pd.isna(service_date):
             continue
 
-        # 初始化
         if resp_staff not in staff_total_stats:
             staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
             staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
@@ -102,35 +102,38 @@ def calculate_staff_stats(df):
             if second_staff == '溫?邦':
                 wen_days_log.append(f"協作活動日期: {service_date} (與 {resp_staff} 在 {case_number})")
 
-            second_main_case = staff_main_case.get(second_staff, None)
-            if case_number == main_case or (second_main_case and case_number == second_main_case):
+            # 修正協作邏輯：僅當 case_number 等於該員工的主案件時計為本區
+            if case_number == main_case:
                 staff_total_stats[resp_staff]['協作'] += 1
-                staff_total_stats[second_staff]['協作'] += 1
                 if resp_staff == '溫?邦':
                     wen_collaboration_log.append(f"本區協作: {service_date}, CaseNumber: {case_number}, 與 {second_staff} (主要案件: {main_case})")
+            else:
+                staff_outside_stats[resp_staff]['協作'] += 1
+                if resp_staff == '溫?邦':
+                    wen_collaboration_log.append(f"外區協作: {service_date}, CaseNumber: {case_number}, 與 {second_staff} (主要案件: {main_case})")
+
+            second_main_case = staff_main_case.get(second_staff, None)
+            if second_main_case and case_number == second_main_case:
+                staff_total_stats[second_staff]['協作'] += 1
                 if second_staff == '溫?邦':
                     wen_collaboration_log.append(f"本區協作: {service_date}, CaseNumber: {case_number}, 與 {resp_staff} (主要案件: {second_main_case})")
             else:
-                staff_outside_stats[resp_staff]['協作'] += 1
                 staff_outside_stats[second_staff]['協作'] += 1
-                if resp_staff == '溫?邦':
-                    wen_collaboration_log.append(f"外區協作: {service_date}, CaseNumber: {case_number}, 與 {second_staff} (主要案件: {main_case})")
                 if second_staff == '溫?邦':
                     wen_collaboration_log.append(f"外區協作: {service_date}, CaseNumber: {case_number}, 與 {resp_staff} (主要案件: {second_main_case})")
 
     staff_days = {staff: len(days) for staff, days in staff_days.items()}
 
-    # 顯示溫?邦的本區協作計算步驟
+    # 顯示溫?邦的計算步驟
     st.subheader("溫?邦 本區協作節數計算步驟")
     if wen_collaboration_log:
         for log in wen_collaboration_log:
             st.write(log)
     else:
-        st.write("無本區協作記錄")
+        st.write("無協作記錄")
     st.write(f"溫?邦 本區協作總節數: {staff_total_stats.get('溫?邦', {}).get('協作', 0)}")
     st.write(f"溫?邦 外區協作總節數: {staff_outside_stats.get('溫?邦', {}).get('協作', 0)}")
 
-    # 顯示溫?邦的工作日數計算步驟
     st.subheader("溫?邦 工作日數計算步驟")
     if wen_days_log:
         for log in wen_days_log:
