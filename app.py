@@ -11,26 +11,43 @@ EXPECTED_COLUMNS = [
     '活動編號', '活動類型'
 ]
 
-# 函數：使用 Big5 編碼讀取 CSV，簡化訊息
+# 函數：自動檢測分隔符並使用 Big5 編碼讀取 CSV
 def read_csv_with_big5(file):
     st.write("開始讀取 Big5 編碼的 CSV 檔案...")
     file.seek(0)
+    
+    # 讀取檔案開頭以檢測分隔符
+    sample = file.read(1024).decode('big5', errors='replace')  # 讀取前 1024 字節
+    file.seek(0)
+    
+    # 檢測分隔符：逗號或制表符
+    if ',' in sample and sample.count(',') > sample.count('\t'):
+        separator = ','
+        st.write("檢測到分隔符：逗號 (',')")
+    else:
+        separator = '\t'
+        st.write("檢測到分隔符：制表符 ('\\t')")
+
     try:
-        df = pd.read_csv(file, encoding='big5', sep='\t')
-        st.write("成功使用標準 Big5 編碼讀取檔案")
+        # 嘗試標準 Big5 編碼
+        df = pd.read_csv(file, encoding='big5', sep=separator)
+        st.write(f"成功使用標準 Big5 編碼讀取檔案（分隔符：{separator}）")
+        st.write(f"解析出的欄位數量: {len(df.columns)}，預期欄位數量: {len(EXPECTED_COLUMNS)}")
         if len(df.columns) != len(EXPECTED_COLUMNS):
             st.write("欄位數量不匹配，設置預定義欄位名稱")
             file.seek(0)
-            df = pd.read_csv(file, encoding='big5', sep='\t', names=EXPECTED_COLUMNS, header=0)
+            df = pd.read_csv(file, encoding='big5', sep=separator, names=EXPECTED_COLUMNS, header=0)
         return df, 'big5'
     except UnicodeDecodeError:
         file.seek(0)
         content = file.read().decode('big5', errors='replace')
-        df = pd.read_csv(io.StringIO(content), sep='\t', names=EXPECTED_COLUMNS, header=0)
-        st.write("成功使用 Big5 編碼（忽略無效字符）讀取檔案")
+        df = pd.read_csv(io.StringIO(content), sep=separator, names=EXPECTED_COLUMNS, header=0)
+        st.write(f"成功使用 Big5 編碼（忽略無效字符）讀取檔案（分隔符：{separator}）")
         return df, 'big5 (with error replacement)'
     except Exception as e:
         st.error(f"無法讀取檔案: {str(e)}")
+        file.seek(0)
+        st.write("檔案前 500 字符（調試用）：", file.read()[:500].decode('big5', errors='replace'))
         return None, None
 
 # 函數：計算本區和外區統計
@@ -84,8 +101,8 @@ def calculate_staff_stats(df):
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (Big5 編碼專用)")
-    st.write("請上傳使用 Big5 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (Big5 編碼，支援逗號與制表符)")
+    st.write("請上傳使用 Big5 編碼的 CSV 檔案（支援逗號或制表符分隔）以計算員工的本區與外區統計結果。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
 
