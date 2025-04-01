@@ -3,40 +3,33 @@ import pandas as pd
 from collections import Counter
 import io
 
-# 函數：嘗試不同編碼讀取 CSV 並提供調試信息
-def read_csv_with_encoding(file):
-    encodings = ['utf-8', 'big5', 'gbk', 'latin1', 'iso-8859-1']
-    st.write("開始嘗試讀取檔案，測試以下編碼：", encodings)
-    
-    for encoding in encodings:
-        try:
-            st.write(f"嘗試使用編碼: {encoding}")
-            file.seek(0)  # 重置文件指針
-            df = pd.read_csv(file, encoding=encoding)
-            st.write(f"成功使用 {encoding} 讀取檔案")
-            return df, encoding
-        except UnicodeDecodeError as ude:
-            st.write(f"編碼 {encoding} 失敗，錯誤信息: {str(ude)}")
-        except Exception as e:
-            st.write(f"編碼 {encoding} 發生其他錯誤: {str(e)}")
-    
-    # 如果所有編碼失敗，嘗試用 latin1 作為最後手段
-    st.write("所有標準編碼失敗，嘗試使用 latin1 並忽略錯誤字符")
+# 函數：使用 Big5 編碼讀取 CSV，並提供容錯
+def read_csv_with_big5(file):
+    st.write("已知檔案使用 Big5 編碼，開始讀取...")
     file.seek(0)
     try:
-        # 將檔案內容讀為字節，然後解碼為字符串，忽略錯誤
-        content = file.read().decode('latin1', errors='replace')
+        # 先嘗試標準 Big5 編碼
+        df = pd.read_csv(file, encoding='big5')
+        st.write("成功使用標準 Big5 編碼讀取檔案")
+        return df, 'big5'
+    except UnicodeDecodeError as ude:
+        st.write(f"標準 Big5 編碼失敗，錯誤信息: {str(ude)}")
+        st.write("嘗試使用 Big5 並忽略無效字符...")
+        file.seek(0)
+        # 讀取原始內容並處理無效字符
+        content = file.read().decode('big5', errors='replace')
         df = pd.read_csv(io.StringIO(content))
-        st.write("成功使用 latin1 (忽略錯誤字符) 讀取檔案")
-        return df, 'latin1 (with error replacement)'
+        st.write("成功使用 Big5 (忽略無效字符) 讀取檔案")
+        return df, 'big5 (with error replacement)'
     except Exception as e:
-        st.error(f"最終嘗試失敗，無法讀取檔案: {str(e)}")
+        st.error(f"無法使用 Big5 讀取檔案: {str(e)}")
         return None, None
 
 # 函數：計算本區和外區統計
 def calculate_staff_stats(df):
     required_columns = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
-    st.write("檢查必要欄位:", required_columns)
+    st.write("檔案實際欄位名稱:", list(df.columns))
+    st.write("程式預期的必要欄位:", required_columns)
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
         raise ValueError(f"缺少必要欄位: {missing_columns}")
@@ -45,7 +38,6 @@ def calculate_staff_stats(df):
     staff_total_stats = {}
     staff_outside_stats = {}
 
-    # 確定本區
     staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
     st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
@@ -84,8 +76,8 @@ def calculate_staff_stats(df):
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具")
-    st.write("請上傳 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具 (Big5 編碼專用)")
+    st.write("請上傳使用 Big5 編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
 
     # 檔案上傳功能
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
@@ -93,10 +85,10 @@ def main():
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
         try:
-            # 讀取檔案並檢測編碼
-            df, used_encoding = read_csv_with_encoding(uploaded_file)
+            # 讀取檔案並使用 Big5 編碼
+            df, used_encoding = read_csv_with_big5(uploaded_file)
             if df is None:
-                st.error("無法讀取檔案，請檢查檔案格式或內容")
+                st.error("無法讀取檔案，請檢查檔案是否為有效的 Big5 編碼 CSV")
                 return
 
             st.write(f"檔案成功解析，使用編碼: {used_encoding}")
