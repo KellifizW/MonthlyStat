@@ -52,30 +52,24 @@ def read_csv_with_big5(file):
             file.seek(0)
             if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
                 file.read(3)  # 跳過 BOM
-            # 讀取完整數據，不預設欄位數量
             df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn')
             st.write(f"成功使用 {enc} 編碼讀取檔案（分隔符：{separator}）")
             st.write(f"解析出的欄位數量: {len(df.columns)}")
             
-            # 顯示原始欄位名稱
             st.write("CSV 文件的原始欄位名稱：", list(df.columns))
             
-            # 檢查必要欄位是否存在
             missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
             if missing_columns:
                 st.error(f"CSV 文件缺少必要欄位: {missing_columns}")
                 st.write("請確認檔案欄位名稱與預期一致")
                 return None, None
             
-            # 只保留 EXPECTED_COLUMNS 中存在的欄位
             available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
             df = df[available_columns]
             st.write(f"保留的欄位數量: {len(df.columns)}，欄位名稱: {available_columns}")
             
-            # 檢查 NumberOfSession 原始數據
             st.write("檢查 NumberOfSession 欄位原始數據（前 5 行）：", df['NumberOfSession'].head().to_dict())
             
-            # 強制轉換 NumberOfSession 為數值類型
             st.write("轉換 NumberOfSession 欄位為數值...")
             if 'NumberOfSession' in df.columns:
                 df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
@@ -106,44 +100,64 @@ def calculate_staff_stats(df):
     staff_total_stats = {}
     staff_outside_stats = {}
 
-    staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
-    staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
-    st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
+    # 檢查數據完整性
+    st.write("檢查數據完整性（是否有空值）：")
+    for col in REQUIRED_COLUMNS:
+        if df[col].isnull().any():
+            st.warning(f"{col} 欄位中存在空值，將跳過相關行")
+            st.write(f"{col} 空值行：", df[df[col].isnull()][REQUIRED_COLUMNS].to_dict())
 
+    # 計算每位員工的本區 CaseNumber
+    try:
+        staff_case_counts = df.groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
+        staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
+        st.write("每位員工的本區 (最高頻次 CaseNumber):", staff_main_case)
+    except Exception as e:
+        st.error(f"計算本區 CaseNumber 時發生錯誤: {str(e)}")
+        return None, None
+
+    # 迭代計算統計
     for index, row in df.iterrows():
-        resp_staff = row['RespStaff']
-        second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
-        case_number = row['CaseNumber']
-        number_of_session = row['NumberOfSession']
-
-        if resp_staff not in staff_total_stats:
-            staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
-            staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
-
-        is_collaboration = bool(second_staff)
-        main_case = staff_main_case.get(resp_staff)
-
         try:
-            sessions = int(number_of_session)
-        except (ValueError, TypeError) as e:
-            st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}，錯誤: {str(e)}")
-            sessions = 0
+            resp_staff = row['RespStaff']
+            second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
+            case_number = row['CaseNumber']
+            number_of_session = row['NumberOfSession']
 
-        if not is_collaboration:
-            staff_total_stats[resp_staff]['個人'] += sessions
-            if case_number != main_case:
-                staff_outside_stats[resp_staff]['個人'] += sessions
-        else:
-            staff_total_stats[resp_staff]['協作'] += sessions
-            if second_staff not in staff_total_stats:
-                staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
-            staff_total_stats[second_staff]['協作'] += sessions
+            # 跳過無效行
+            if pd.isna(resp_staff) or pd.isna(case_number):
+                st.warning(f"行 {index} 缺少 RespStaff 或 CaseNumber，跳過")
+                continue
 
-            if case_number != main_case:
-                staff_outside_stats[resp_staff]['協作'] += sessions
-                if second_staff not in staff_outside_stats:
-                    staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
-                staff_outside_stats[second_staff]['協作'] += sessions
+            if resp_staff not in staff_total_stats:
+                staff_total_stats[resp_staff] = {'個人': 0, '協作': 0}
+                staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
+
+            is_collaboration = bool(second_staff)
+            main_case = staff_main_case.get(resp_staff, None)
+
+            sessions = int(number_of_session)  # NumberOfSession 已轉為整數
+
+            if not is_collaboration:
+                staff_total_stats[resp_staff]['個人'] += sessions
+                if main_case and case_number != main_case:
+                    staff_outside_stats[resp_staff]['個人'] += sessions
+            else:
+                staff_total_stats[resp_staff]['協作'] += sessions
+                if second_staff:
+                    if second_staff not in staff_total_stats:
+                        staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
+                    staff_total_stats[second_staff]['協作'] += sessions
+
+                    if main_case and case_number != main_case:
+                        staff_outside_stats[resp_staff]['協作'] += sessions
+                        if second_staff not in staff_outside_stats:
+                            staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
+                        staff_outside_stats[second_staff]['協作'] += sessions
+
+        except Exception as e:
+            st.error(f"處理行 {index} 時發生錯誤: {str(e)}，數據: {row[REQUIRED_COLUMNS].to_dict()}")
+            continue
 
     st.write("計算完成，返回統計結果")
     return staff_total_stats, staff_outside_stats
@@ -178,6 +192,9 @@ def main():
             )
 
             staff_total_stats, staff_outside_stats = calculate_staff_stats(df)
+            if staff_total_stats is None or staff_outside_stats is None:
+                st.error("統計計算失敗，請檢查錯誤訊息")
+                return
 
             st.subheader("本區統計（總個人與協作次數）")
             total_stats_df = pd.DataFrame(staff_total_stats).T
