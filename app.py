@@ -65,7 +65,7 @@ def read_csv_with_big5(file):
                 df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
                 if df['NumberOfSession'].isnull().any():
                     st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 NaN")
-                    st.write("無效數據行：", df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']])
+                    st.write("無效數據行：", df[df['NumberOfSession'].isnull()][['CaseNumber', 'RespStaff', 'NumberOfSession']].to_dict())
             return df, enc
         except UnicodeDecodeError as e:
             st.error(f"無法使用 {enc} 編碼讀取檔案: {str(e)}")
@@ -106,12 +106,16 @@ def calculate_staff_stats(df):
         is_collaboration = bool(second_staff)
         main_case = staff_main_case.get(resp_staff)
 
-        try:
-            # 確保 number_of_session 是數值
-            sessions = int(number_of_session) if pd.notna(number_of_session) else 0
-        except (ValueError, TypeError):
-            st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}")
+        # 處理 NumberOfSession 的值
+        if pd.isna(number_of_session):
             sessions = 0
+            st.warning(f"行 {index} 的 NumberOfSession 為 NaN，設為 0 (員工: {resp_staff}, CaseNumber: {case_number})")
+        else:
+            try:
+                sessions = int(number_of_session)
+            except (ValueError, TypeError) as e:
+                st.error(f"行 {index} 的 NumberOfSession 值無效: {number_of_session}，錯誤: {str(e)}")
+                sessions = 0
 
         if not is_collaboration:
             staff_total_stats[resp_staff]['個人'] += sessions
