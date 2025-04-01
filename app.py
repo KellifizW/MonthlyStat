@@ -56,7 +56,7 @@ def read_csv_with_big5(file):
 
 # 函數：計算統計數據
 def calculate_staff_stats(df):
-    missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+    missing_columns = [col for col in REQUIRED_COLUMNS if col in df.columns]
     if missing_columns:
         st.error(f"缺少必要欄位: {missing_columns}")
         return None, None, None, None
@@ -91,7 +91,7 @@ def calculate_staff_stats(df):
             staff_outside_stats[resp_staff] = {'個人': 0, '協作': 0}
             staff_days[resp_staff] = set()  # 使用集合記錄唯一日期
 
-        # 記錄工作日
+        # 無論本區還是外區，都記錄主要員工的工作日
         staff_days[resp_staff].add(service_date)
 
         try:
@@ -111,6 +111,7 @@ def calculate_staff_stats(df):
                 staff_total_stats[resp_staff]['個人'] += 1
             else:
                 staff_outside_stats[resp_staff]['個人'] += 1
+                # 外區個人節數也已記錄日期，無需額外操作
         else:
             staff_total_stats[resp_staff]['協作'] += 1
             if second_staff:
@@ -119,11 +120,12 @@ def calculate_staff_stats(df):
                     staff_outside_stats[second_staff] = {'個人': 0, '協作': 0}
                     staff_days[second_staff] = set()
                 staff_total_stats[second_staff]['協作'] += 1
-                staff_days[second_staff].add(service_date)
+                staff_days[second_staff].add(service_date)  # 協作員工記錄日期
 
                 if case_number != main_case:
                     staff_outside_stats[resp_staff]['協作'] += 1
                     staff_outside_stats[second_staff]['協作'] += 1
+                    # 外區協作節數也已記錄日期，無需額外操作
 
     # 將集合轉換為日數
     staff_days = {staff: len(days) for staff, days in staff_days.items()}
