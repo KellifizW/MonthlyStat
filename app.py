@@ -44,7 +44,7 @@ def calculate_staff_stats(df):
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
         st.error(f"缺少必要欄位: {missing_columns}")
-        return None, None, None, None
+        return None, None
 
     staff_total_stats = {}
     staff_outside_stats = {}
@@ -56,10 +56,6 @@ def calculate_staff_stats(df):
     # 確定每個員工的主要 CaseNumber（僅基於個人活動）
     staff_case_counts = df[df['2ndRespStaffName'].isna()].groupby('RespStaff')['CaseNumber'].value_counts().unstack(fill_value=0)
     staff_main_case = staff_case_counts.idxmax(axis=1).to_dict()
-
-    # 記錄徐家兒的個人本區和外區計算步驟
-    xu_personal_local_log = []
-    xu_personal_outside_log = []
 
     for index, row in df.iterrows():
         resp_staff = row['RespStaff']
@@ -86,12 +82,8 @@ def calculate_staff_stats(df):
         if not is_collaboration:
             if case_number == main_case:
                 staff_total_stats[resp_staff]['個人'] += 1
-                if resp_staff == '徐家兒':
-                    xu_personal_local_log.append(f"本區個人: {service_date}, CaseNumber: {case_number}")
             else:
                 staff_outside_stats[resp_staff]['個人'] += 1
-                if resp_staff == '徐家兒':
-                    xu_personal_outside_log.append(f"外區個人: {service_date}, CaseNumber: {case_number}")
         else:
             if second_staff not in staff_total_stats:
                 staff_total_stats[second_staff] = {'個人': 0, '協作': 0}
@@ -113,24 +105,18 @@ def calculate_staff_stats(df):
 
     staff_days = {staff: len(days) for staff, days in staff_days.items()}
 
-    # 顯示徐家兒的個人本區和外區計算步驟
-    st.subheader("徐家兒 本區個人計算步驟")
-    if xu_personal_local_log:
-        for log in xu_personal_local_log:
-            st.write(log)
-    else:
-        st.write("無本區個人記錄")
-    st.write(f"徐家兒 本區個人總節數: {staff_total_stats.get('徐家兒', {}).get('個人', 0)}")
+    # 合併統計數據
+    combined_stats = {}
+    for staff in set(staff_total_stats.keys()).union(staff_outside_stats.keys(), staff_days.keys()):
+        combined_stats[staff] = {
+            '本區個人 (節)': staff_total_stats.get(staff, {}).get('個人', 0),
+            '本區協作 (節)': staff_total_stats.get(staff, {}).get('協作', 0),
+            '外區個人 (節)': staff_outside_stats.get(staff, {}).get('個人', 0),
+            '外區協作 (節)': staff_outside_stats.get(staff, {}).get('協作', 0),
+            '外展日數': staff_days.get(staff, 0)
+        }
 
-    st.subheader("徐家兒 外區個人計算步驟")
-    if xu_personal_outside_log:
-        for log in xu_personal_outside_log:
-            st.write(log)
-    else:
-        st.write("無外區個人記錄")
-    st.write(f"徐家兒 外區個人總節數: {staff_outside_stats.get('徐家兒', {}).get('個人', 0)}")
-
-    return staff_total_stats, staff_outside_stats, staff_days, activity_type_stats
+    return combined_stats, activity_type_stats
 
 def main():
     st.title("員工活動統計工具")
@@ -147,24 +133,15 @@ def main():
         st.write("以下是前幾行數據：")
         st.dataframe(df.head())
 
-        staff_total_stats, staff_outside_stats, staff_days, activity_type_stats = calculate_staff_stats(df)
-        if staff_total_stats is None:
+        combined_stats, activity_type_stats = calculate_staff_stats(df)
+        if combined_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
 
-        st.subheader("本區統計（總個人與協作次數）")
-        total_stats_df = pd.DataFrame(staff_total_stats).T
-        total_stats_df.columns = ['個人 (節)', '協作 (節)']
-        st.table(total_stats_df)
-
-        st.subheader("外區統計")
-        outside_stats_df = pd.DataFrame(staff_outside_stats).T
-        outside_stats_df.columns = ['個人 (節)', '協作 (節)']
-        st.table(outside_stats_df)
-
-        st.subheader("員工工作日數統計")
-        days_df = pd.DataFrame.from_dict(staff_days, orient='index', columns=['工作日數'])
-        st.table(days_df)
+        st.subheader("員工活動統計總表")
+        combined_df = pd.DataFrame(combined_stats).T
+        combined_df = combined_df[['本區個人 (節)', '本區協作 (節)', '外區個人 (節)', '外區協作 (節)', '外展日數']]
+        st.table(combined_df)
 
         st.subheader("活動類型統計")
         activity_df = pd.DataFrame.from_dict(activity_type_stats, orient='index', columns=['次數'])
