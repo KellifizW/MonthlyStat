@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-import chardet
-import magic
-import traceback
 
 # 預定義的欄位名稱
 EXPECTED_COLUMNS = [
@@ -16,106 +13,39 @@ EXPECTED_COLUMNS = [
 # 必要欄位（用於統計）
 REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
 
-# 函數：檢測檔案編碼和類型
-def detect_file_info(file):
-    file.seek(0)
-    raw_data = file.read(1024)
+# 函數：使用 big5hkscs 讀取 CSV
+def read_csv_with_big5(file):
     file.seek(0)
     
-    encoding_result = chardet.detect(raw_data)
-    detected_encoding = encoding_result['encoding']
-    encoding_confidence = encoding_result['confidence']
-    
-    mime_detector = magic.Magic(mime=True)
-    file_type = mime_detector.from_buffer(raw_data)
-    
-    return {
-        'detected_encoding': detected_encoding,
-        'encoding_confidence': encoding_confidence,
-        'file_type': file_type,
-        'sample_content': raw_data[:100].decode(detected_encoding, errors='replace') if detected_encoding else "無法解碼"
-    }
-
-# 函數：兼容多種編碼的 CSV 讀取
-def read_csv_with_big5(file, manual_encoding=None, ignore_errors=False):
-    file.seek(0)
-    
-    encodings = ['big5', 'big5hkscs', 'utf-8', 'gbk', 'windows-1252']
-    if manual_encoding:
-        encodings = [manual_encoding] + [enc for enc in encodings if enc != manual_encoding]
-    
-    bom = file.read(3)
-    if bom == b'\xef\xbb\xbf':
-        encoding = 'utf-8'
-        sample = file.read(1024).decode(encoding)
-    else:
-        file.seek(0)
-        for enc in encodings:
-            try:
-                file.seek(0)
-                sample = file.read(1024).decode(enc)
-                encoding = enc
-                break
-            except UnicodeDecodeError:
-                continue
-        else:
-            file_info = detect_file_info(file)
-            st.error("無法讀取檔案，所有嘗試的編碼均失敗")
-            st.write("檔案資訊：")
-            st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
-            st.write(f"- 檔案類型: {file_info['file_type']}")
-            st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
-            return None, None
-    
+    encoding = 'big5hkscs'
     separators = [',', '\t']
+    
+    # 檢測分隔符
+    sample = file.read(1024).decode(encoding, errors='replace')
+    file.seek(0)
     separator = max(separators, key=lambda sep: sample.count(sep))
 
-    for enc in encodings:
-        try:
-            file.seek(0)
-            if enc == 'utf-8' and bom == b'\xef\xbb\xbf':
-                file.read(3)
-            error_handling = 'ignore' if ignore_errors else 'strict'
-            df = pd.read_csv(file, encoding=enc, sep=separator, on_bad_lines='warn', encoding_errors=error_handling)
-            
-            missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-            if missing_columns:
-                st.error(f"CSV 文件缺少必要欄位: {missing_columns}")
-                return None, None
-            
-            available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
-            df = df[available_columns]
-            
-            if 'NumberOfSession' in df.columns:
-                df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
-                if df['NumberOfSession'].isnull().any():
-                    st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 0")
-                    df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
-            if ignore_errors:
-                st.warning(f"已忽略編碼錯誤，使用 {enc} 強制載入檔案，數據可能不完整")
-            return df, enc
-        except UnicodeDecodeError as e:
-            st.warning(f"編碼 {enc} 解碼失敗: {str(e)}")
-            continue
-        except Exception as e:
-            file_info = detect_file_info(file)
-            st.error("無法讀取檔案，請檢查檔案是否為有效的 CSV")
-            st.write("檔案資訊：")
-            st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
-            st.write(f"- 檔案類型: {file_info['file_type']}")
-            st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
-            st.write(f"錯誤詳情: {str(e)}")
-            st.write("完整錯誤堆棧:")
-            st.write(traceback.format_exc())
+    try:
+        df = pd.read_csv(file, encoding=encoding, sep=separator, on_bad_lines='warn')
+        
+        missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_columns:
+            st.error(f"CSV 文件缺少必要欄位: {missing_columns}")
             return None, None
-    
-    file_info = detect_file_info(file)
-    st.error("無法讀取檔案，所有嘗試的編碼均失敗")
-    st.write("檔案資訊：")
-    st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
-    st.write(f"- 檔案類型: {file_info['file_type']}")
-    st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
-    return None, None
+        
+        available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
+        df = df[available_columns]
+        
+        if 'NumberOfSession' in df.columns:
+            df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce')
+            if df['NumberOfSession'].isnull().any():
+                st.warning("NumberOfSession 欄位中存在無效數值，已轉換為 0")
+                df['NumberOfSession'] = df['NumberOfSession'].fillna(0).astype(int)
+        return df, encoding
+    except Exception as e:
+        st.error(f"無法讀取檔案，請檢查檔案是否為有效的 CSV")
+        st.write(f"錯誤詳情: {str(e)}")
+        return None, None
 
 # 函數：計算本區和外區統計
 def calculate_staff_stats(df):
@@ -182,16 +112,14 @@ def calculate_staff_stats(df):
 
 # Streamlit 主介面
 def main():
-    st.title("員工活動統計工具 (支援多種編碼)")
-    st.write("請上傳使用 Big5、UTF-8 或其他編碼的 CSV 檔案以計算員工的本區與外區統計結果。")
+    st.title("員工活動統計工具")
+    st.write("請上傳 CSV 檔案以計算員工的本區與外區統計結果（使用 Big5HKSCS 編碼）。")
 
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"])
-    manual_encoding = st.selectbox("手動指定編碼（可選）", [None, 'big5', 'big5hkscs', 'utf-8', 'gbk', 'windows-1252'], index=0)
-    ignore_errors = st.checkbox("忽略編碼錯誤並強制載入（可能導致數據丟失）", value=False)
 
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
-        df, used_encoding = read_csv_with_big5(uploaded_file, manual_encoding, ignore_errors)
+        df, used_encoding = read_csv_with_big5(uploaded_file)
         if df is None:
             return
 
