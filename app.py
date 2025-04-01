@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
+import chardet
+import magic
 
 # 預定義的欄位名稱
 EXPECTED_COLUMNS = [
@@ -12,6 +14,28 @@ EXPECTED_COLUMNS = [
 
 # 必要欄位（用於統計）
 REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'CaseNumber', 'NumberOfSession']
+
+# 函數：檢測檔案編碼和類型
+def detect_file_info(file):
+    file.seek(0)
+    raw_data = file.read(1024)  # 讀取前 1024 字節進行檢測
+    file.seek(0)
+    
+    # 使用 chardet 檢測編碼
+    encoding_result = chardet.detect(raw_data)
+    detected_encoding = encoding_result['encoding']
+    encoding_confidence = encoding_result['confidence']
+    
+    # 使用 python-magic 檢測檔案類型
+    mime_detector = magic.Magic(mime=True)
+    file_type = mime_detector.from_buffer(raw_data)
+    
+    return {
+        'detected_encoding': detected_encoding,
+        'encoding_confidence': encoding_confidence,
+        'file_type': file_type,
+        'sample_content': raw_data[:100].decode(detected_encoding, errors='replace') if detected_encoding else "無法解碼"
+    }
 
 # 函數：兼容多種編碼的 CSV 讀取
 def read_csv_with_big5(file):
@@ -34,7 +58,12 @@ def read_csv_with_big5(file):
             except UnicodeDecodeError:
                 continue
         else:
-            st.error("無法確定編碼，檔案可能損壞或使用未知編碼")
+            file_info = detect_file_info(file)
+            st.error("無法讀取檔案，所有嘗試的編碼均失敗")
+            st.write("檔案資訊：")
+            st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
+            st.write(f"- 檔案類型: {file_info['file_type']}")
+            st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
             return None, None
     
     separators = [',', '\t']
@@ -64,10 +93,21 @@ def read_csv_with_big5(file):
         except UnicodeDecodeError:
             continue
         except Exception as e:
-            st.error(f"解析錯誤: {str(e)}")
+            file_info = detect_file_info(file)
+            st.error("無法讀取檔案，請檢查檔案是否為有效的 CSV")
+            st.write("檔案資訊：")
+            st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
+            st.write(f"- 檔案類型: {file_info['file_type']}")
+            st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
+            st.write(f"錯誤詳情: {str(e)}")
             return None, None
     
+    file_info = detect_file_info(file)
     st.error("無法讀取檔案，所有嘗試的編碼均失敗")
+    st.write("檔案資訊：")
+    st.write(f"- 檢測到的編碼: {file_info['detected_encoding']} (信心度: {file_info['encoding_confidence']:.2%})")
+    st.write(f"- 檔案類型: {file_info['file_type']}")
+    st.write(f"- 前 100 字節內容: {file_info['sample_content']}")
     return None, None
 
 # 函數：計算本區和外區統計
@@ -144,7 +184,6 @@ def main():
         st.write("檔案已上傳，名稱:", uploaded_file.name)
         df, used_encoding = read_csv_with_big5(uploaded_file)
         if df is None:
-            st.error("無法讀取檔案，請檢查檔案是否為有效的 CSV")
             return
 
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
