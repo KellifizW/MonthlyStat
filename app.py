@@ -35,8 +35,6 @@ def read_csv_with_big5(file):
         available_columns = [col for col in EXPECTED_COLUMNS if col in df.columns]
         df = df[available_columns]
         df['NumberOfSession'] = pd.to_numeric(df['NumberOfSession'], errors='coerce').fillna(0).astype(int)
-        # 去重數據，避免重複計數
-        df = df.drop_duplicates(subset=['RespStaff', '2ndRespStaffName', 'CaseNumber', 'ServiceDate'])
         return df, encoding
     except Exception as e:
         st.error(f"無法讀取檔案，請檢查檔案是否為有效的 CSV: {str(e)}")
