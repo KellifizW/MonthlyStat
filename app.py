@@ -4,6 +4,9 @@ import requests
 from io import StringIO
 import re
 
+# 設置頁面為寬屏模式
+st.set_page_config(layout="wide")
+
 # GitHub Raw URL
 RAW_URL = "https://raw.githubusercontent.com/KellifizW/MonthlyStat/main/homelist.csv"
 
@@ -225,7 +228,7 @@ def get_staff_details(df, staff_name):
         'all_days': sorted(all_days)
     }
 
-# 列表頁（不變）
+# 列表頁（移除列表詳情）
 def list_page():
     st.title("GitHub homelist.csv 列表")
     st.write("從 GitHub 儲存庫讀取並顯示 homelist.csv 的內容。")
@@ -235,11 +238,7 @@ def list_page():
         st.subheader("homelist.csv 內容")
         st.dataframe(df)
 
-        st.write("列表詳情：")
-        for index, row in df.iterrows():
-            st.write(f"第 {index + 1} 行：{row.to_dict()}")
-
-# 外出統計程式頁（移除總覽統計並並排顯示）
+# 外出統計程式頁（調整並排比例）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -287,8 +286,8 @@ def outing_stats_page():
         # 計算分區統計節數
         region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
 
-        # 並排顯示員工統計表和分區統計節數
-        col1, col2 = st.columns(2)
+        # 並排顯示員工統計表和分區統計節數（調整比例）
+        col1, col2 = st.columns([7, 3])  # 員工統計表 70%，分區統計節數 30%
 
         with col1:
             st.subheader("員工統計表")
