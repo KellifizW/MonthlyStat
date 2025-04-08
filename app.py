@@ -59,7 +59,7 @@ def extract_home_number(home_name):
     match = re.match(r'^\d{1,3}', str(home_name))
     return match.group(0) if match else None
 
-# 判斷區域並返回員工的區域狀態
+# 判斷區域並返回員工的區域狀態（原有功能）
 def check_local(row, github_df):
     home_number = extract_home_number(row['HomeName'])
     resp_staff = row['RespStaff'] if pd.notna(row['RespStaff']) else None
@@ -88,7 +88,7 @@ def check_local(row, github_df):
 def convert_name(name):
     return NAME_CONVERSION.get(name, name) if pd.notna(name) else name
 
-# 計算員工統計（包括外出日數）
+# 計算員工統計（包括外出日數，原有功能）
 def calculate_staff_stats(df, github_df):
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
@@ -96,7 +96,7 @@ def calculate_staff_stats(df, github_df):
         return None
 
     staff_stats = {}
-    staff_days = {}  # 用於計算外出日數
+    staff_days = {}
 
     for index, row in df.iterrows():
         resp_staff = convert_name(row['RespStaff'])
@@ -106,7 +106,6 @@ def calculate_staff_stats(df, github_df):
         if pd.isna(resp_staff) or pd.isna(service_date):
             continue
 
-        # 初始化統計
         if resp_staff not in staff_stats:
             staff_stats[resp_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
@@ -118,22 +117,20 @@ def calculate_staff_stats(df, github_df):
             }
             staff_days[second_staff] = set()
 
-        # 記錄外出日數（不重複日期）
         staff_days[resp_staff].add(service_date)
         if second_staff:
             staff_days[second_staff].add(service_date)
 
-        # 更新節數統計
         regions = check_local(row, github_df)
         resp_region = regions['resp_region']
         second_region = regions['second_region']
 
-        if not second_staff:  # 單獨
+        if not second_staff:
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
             else:
                 staff_stats[resp_staff]['外區單獨'] += 1
-        else:  # 協作
+        else:
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區協作'] += 1
             else:
@@ -143,13 +140,43 @@ def calculate_staff_stats(df, github_df):
             else:
                 staff_stats[second_staff]['外區協作'] += 1
 
-    # 添加外出日數到統計結果
     for staff in staff_stats:
         staff_stats[staff]['外出日數'] = len(staff_days[staff])
 
     return staff_stats, staff_days
 
-# 獲取員工的詳細記錄
+# 新增：計算分區統計節數
+def calculate_region_stats(df, github_df):
+    region_stats = {
+        'Ling': 0,
+        'Mike': 0,
+        'Pong': 0,
+        'Peppy': 0
+    }
+
+    for index, row in df.iterrows():
+        home_number = extract_home_number(row['HomeName'])
+        if home_number is None:
+            continue
+
+        # 查找對應的院舍記錄
+        matching_homes = github_df[github_df['Home'].astype(str) == str(home_number)]
+        if matching_homes.empty:
+            continue
+
+        # 獲取該院舍的 staff1（主要負責員工）
+        staff1 = matching_homes.iloc[0]['staff1']
+        if pd.isna(staff1):
+            continue
+
+        # 計入對應分區
+        if staff1 in region_stats:
+            region_stats[staff1] += 1
+
+    total_sessions = sum(region_stats.values())
+    return region_stats, total_sessions
+
+# 獲取員工的詳細記錄（原有功能）
 def get_staff_details(df, staff_name):
     solo_records = []
     collab_records = []
@@ -181,7 +208,7 @@ def get_staff_details(df, staff_name):
         'all_days': sorted(all_days)
     }
 
-# 列表頁
+# 列表頁（不變）
 def list_page():
     st.title("GitHub homelist.csv 列表")
     st.write("從 GitHub 儲存庫讀取並顯示 homelist.csv 的內容。")
@@ -195,10 +222,10 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 外出統計程式頁
+# 外出統計程式頁（新增分區統計）
 def outing_stats_page():
     st.title("外出統計程式")
-    st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數（使用 Big5HKSCS 編碼）。")
+    st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
 
     if uploaded_file is not None:
@@ -229,18 +256,18 @@ def outing_stats_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
-        # 應用區域判斷並記錄到數據框（僅用於統計，不顯示）
+        # 應用區域判斷並記錄到數據框（用於原有統計）
         uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
 
-        # 統計本區與外區總數
+        # 統計本區與外區總數（原有功能）
         region_counts = uploaded_df['RespRegion'].value_counts()
         st.subheader("區域總計")
         st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
 
-        # 計算員工統計
+        # 計算員工統計（原有功能）
         staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
         if staff_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
@@ -252,7 +279,16 @@ def outing_stats_page():
         stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '外出日數']]
         st.table(stats_df)
 
-        # 員工下拉清單
+        # 新增：計算並顯示分區統計節數
+        st.subheader("分區統計節數")
+        region_stats, total_sessions = calculate_region_stats(uploaded_df, github_df)
+        st.write(f"Ling 分區: {region_stats['Ling']} 次")
+        st.write(f"Mike 分區: {region_stats['Mike']} 節")
+        st.write(f"Pong 分區: {region_stats['Pong']} 節")
+        st.write(f"Peppy 分區: {region_stats['Peppy']} 節")
+        st.write(f"總共: {total_sessions} 節")
+
+        # 員工下拉清單（原有功能）
         st.subheader("員工詳細統計")
         staff_list = list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list)
@@ -283,7 +319,7 @@ def outing_stats_page():
 # 主程式：頁面切換
 def main():
     st.sidebar.title("頁面導航")
-    page = st.sidebar.selectbox("選擇頁面", ["外出統計程式", "列表頁"], index=0)  # 默認為「外出統計程式」
+    page = st.sidebar.selectbox("選擇頁面", ["外出統計程式", "列表頁"], index=0)
 
     if page == "外出統計程式":
         outing_stats_page()
