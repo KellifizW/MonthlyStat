@@ -147,7 +147,39 @@ def calculate_staff_stats(df, github_df):
     for staff in staff_stats:
         staff_stats[staff]['外出日數'] = len(staff_days[staff])
 
-    return staff_stats
+    return staff_stats, staff_days
+
+# 獲取員工的詳細記錄
+def get_staff_details(df, staff_name):
+    solo_records = []
+    collab_records = []
+    solo_days = set()
+    collab_days = set()
+
+    for index, row in df.iterrows():
+        resp_staff = convert_name(row['RespStaff'])
+        second_staff = convert_name(row['2ndRespStaffName']) if pd.notna(row['2ndRespStaffName']) else None
+        service_date = row['ServiceDate']
+        home_name = row['HomeName']
+
+        if resp_staff == staff_name and not second_staff:
+            solo_records.append(f"{service_date} - {home_name}")
+            solo_days.add(service_date)
+        elif resp_staff == staff_name and second_staff:
+            collab_records.append(f"{service_date} - {home_name}（與 {second_staff}）")
+            collab_days.add(service_date)
+        elif second_staff == staff_name:
+            collab_records.append(f"{service_date} - {home_name}（與 {resp_staff}）")
+            collab_days.add(service_date)
+
+    all_days = solo_days.union(collab_days)
+    return {
+        'solo_records': solo_records,
+        'collab_records': collab_records,
+        'solo_days': sorted(solo_days),
+        'collab_days': sorted(collab_days),
+        'all_days': sorted(all_days)
+    }
 
 # 統計頁
 def stats_page():
@@ -231,7 +263,7 @@ def test_page():
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
 
         # 計算員工統計
-        staff_stats = calculate_staff_stats(uploaded_df, github_df)
+        staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
         if staff_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
@@ -241,6 +273,34 @@ def test_page():
         stats_df = pd.DataFrame(staff_stats).T
         stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '外出日數']]
         st.table(stats_df)
+
+        # 新增員工下拉清單
+        st.subheader("員工詳細統計")
+        staff_list = list(staff_stats.keys())
+        selected_staff = st.selectbox("選擇員工", staff_list)
+
+        if selected_staff:
+            details = get_staff_details(uploaded_df, selected_staff)
+            st.write(f"### {selected_staff}")
+            
+            st.write("**單獨記錄：**")
+            if details['solo_records']:
+                for record in details['solo_records']:
+                    st.write(record)
+            else:
+                st.write("無單獨記錄")
+
+            st.write("**協作記錄：**")
+            if details['collab_records']:
+                for record in details['collab_records']:
+                    st.write(record)
+            else:
+                st.write("無協作記錄")
+
+            st.write("**不重複日期：**")
+            st.write(f"單獨：{', '.join(details['solo_days'])} → {len(details['solo_days'])} 天")
+            st.write(f"協作：{', '.join(details['collab_days'])} → {len(details['collab_days'])} 天")
+            st.write(f"總計：{', '.join(details['all_days'])} → {len(details['all_days'])} 天")
 
 # 主程式：頁面切換
 def main():
