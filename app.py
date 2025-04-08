@@ -25,6 +25,12 @@ NAME_CONVERSION = {
     '徐家兒': 'Kayi'
 }
 
+# 初始化 session_state
+if 'uploaded_df' not in st.session_state:
+    st.session_state['uploaded_df'] = None
+if 'used_encoding' not in st.session_state:
+    st.session_state['used_encoding'] = None
+
 # 讀取 CSV 檔案（Big5HKSCS 編碼）
 def read_csv_with_big5(file):
     file.seek(0)
@@ -258,17 +264,35 @@ def style_staff_table(df):
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
-    uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
 
-    if uploaded_file is not None:
-        st.write("檔案已上傳，名稱:", uploaded_file.name)
-        uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
-        if uploaded_df is None:
-            return
+    # 檢查是否已經有上傳的數據
+    if st.session_state['uploaded_df'] is None:
+        uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
+        if uploaded_file is not None:
+            st.write("檔案已上傳，名稱:", uploaded_file.name)
+            uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
+            if uploaded_df is None:
+                return
+            # 儲存到 session_state
+            st.session_state['uploaded_df'] = uploaded_df
+            st.session_state['used_encoding'] = used_encoding
+    else:
+        st.write("已使用之前上傳的檔案，若需更換請重新上傳。")
+        uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
+        if uploaded_file is not None:
+            st.write("檔案已上傳，名稱:", uploaded_file.name)
+            uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
+            if uploaded_df is None:
+                return
+            # 更新 session_state
+            st.session_state['uploaded_df'] = uploaded_df
+            st.session_state['used_encoding'] = used_encoding
 
-        # 儲存上傳的數據到 session_state，以便其他頁面使用
-        st.session_state['uploaded_df'] = uploaded_df
+    # 使用 session_state 中的數據
+    uploaded_df = st.session_state['uploaded_df']
+    used_encoding = st.session_state['used_encoding']
 
+    if uploaded_df is not None:
         # 轉換員工名稱
         uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
@@ -411,7 +435,7 @@ def stats_chart_page():
     st.write("此頁面顯示活動類型的統計圖表。")
 
     # 檢查是否有上傳的數據
-    if 'uploaded_df' not in st.session_state:
+    if st.session_state['uploaded_df'] is None:
         st.warning("請先在「外出統計程式」頁面上傳 CSV 檔案以生成圖表。")
         return
 
