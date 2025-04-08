@@ -254,7 +254,7 @@ def style_staff_table(df):
     
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁（移除圖表）
+# 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -421,10 +421,26 @@ def stats_chart_page():
         type_counts = uploaded_df['活動類型'].value_counts().reset_index()
         type_counts.columns = ['活動類型', '次數']
         type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
+
+        # 提取 ServiceDate 欄位的年份和月份
+        if 'ServiceDate' in uploaded_df.columns:
+            try:
+                # 將 ServiceDate 轉換為 datetime 格式
+                uploaded_df['ServiceDate'] = pd.to_datetime(uploaded_df['ServiceDate'], errors='coerce')
+                # 提取年份和月份（假設數據中所有日期在同一年和同一月）
+                year = uploaded_df['ServiceDate'].dt.year.iloc[0]
+                month = uploaded_df['ServiceDate'].dt.month.iloc[0]
+                title = f"{year}年{month}月 份活動內容"
+            except Exception as e:
+                st.warning(f"無法解析 ServiceDate 欄位：{str(e)}，使用默認標題。")
+                title = "2025年1月 份活動內容"
+        else:
+            st.warning("上傳的 CSV 中無 ServiceDate 欄位，使用默認標題。")
+            title = "2025年1月 份活動內容"
         
         # 顯示圖表
         st.write("**活動類型分佈圖：**")
-        fig = graph.create_activity_type_donut_chart(type_counts, "2025年1月 份活動內容")
+        fig = graph.create_activity_type_donut_chart(type_counts, title)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.write("上傳的 CSV 中無「活動類型」欄位，無法生成圖表。")
