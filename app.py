@@ -118,17 +118,16 @@ def calculate_staff_stats(df, github_df):
             }
             staff_days[second_staff] = set()
 
-        # 記錄外出日數
+        # 記錄外出日數（不重複日期）
         staff_days[resp_staff].add(service_date)
         if second_staff:
             staff_days[second_staff].add(service_date)
 
-        # 判斷區域
+        # 更新節數統計
         regions = check_local(row, github_df)
         resp_region = regions['resp_region']
         second_region = regions['second_region']
 
-        # 更新節數統計
         if not second_staff:  # 單獨
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
