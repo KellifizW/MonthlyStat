@@ -10,6 +10,17 @@ RAW_URL = "https://raw.githubusercontent.com/KellifizW/MonthlyStat/main/homelist
 # 定義必要欄位
 REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'HomeName', 'ServiceDate']
 
+# 名稱轉換字典
+NAME_CONVERSION = {
+    '溫?邦': 'Pong',
+    '譚惠凌': 'Ling',
+    '陳發成': 'Jack',
+    '林振聲': 'Mike',
+    '黃瑞霞': 'Peppy',
+    '曾嘉欣': 'Kama',
+    '徐家兒': 'Kayi'
+}
+
 # 讀取 CSV 檔案（Big5HKSCS 編碼）
 def read_csv_with_big5(file):
     file.seek(0)
@@ -73,7 +84,11 @@ def check_local(row, github_df):
 
     return {'resp_region': resp_region, 'second_region': second_region}
 
-# 計算員工統計
+# 轉換員工名稱
+def convert_name(name):
+    return NAME_CONVERSION.get(name, name) if pd.notna(name) else name
+
+# 計算員工統計（包括外出日數）
 def calculate_staff_stats(df, github_df):
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
@@ -81,28 +96,39 @@ def calculate_staff_stats(df, github_df):
         return None
 
     staff_stats = {}
+    staff_days = {}  # 用於計算外出日數
 
     for index, row in df.iterrows():
-        resp_staff = row['RespStaff']
-        second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
+        resp_staff = convert_name(row['RespStaff'])
+        second_staff = convert_name(row['2ndRespStaffName']) if pd.notna(row['2ndRespStaffName']) else None
         service_date = row['ServiceDate']
 
         if pd.isna(resp_staff) or pd.isna(service_date):
             continue
 
+        # 初始化統計
         if resp_staff not in staff_stats:
             staff_stats[resp_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
             }
+            staff_days[resp_staff] = set()
         if second_staff and second_staff not in staff_stats:
             staff_stats[second_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
             }
+            staff_days[second_staff] = set()
 
+        # 記錄外出日數
+        staff_days[resp_staff].add(service_date)
+        if second_staff:
+            staff_days[second_staff].add(service_date)
+
+        # 判斷區域
         regions = check_local(row, github_df)
         resp_region = regions['resp_region']
         second_region = regions['second_region']
 
+        # 更新節數統計
         if not second_staff:  # 單獨
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
@@ -117,6 +143,10 @@ def calculate_staff_stats(df, github_df):
                 staff_stats[second_staff]['本區協作'] += 1
             else:
                 staff_stats[second_staff]['外區協作'] += 1
+
+    # 添加外出日數到統計結果
+    for staff in staff_stats:
+        staff_stats[staff]['外出日數'] = len(staff_days[staff])
 
     return staff_stats
 
@@ -162,8 +192,12 @@ def test_page():
         if uploaded_df is None:
             return
 
+        # 轉換員工名稱
+        uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
+        uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
+
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
-        st.write("上傳檔案的前幾行數據：")
+        st.write("上傳檔案的前幾行數據（已轉換員工名稱）：")
         st.dataframe(uploaded_df.head())
 
         github_df = get_github_csv_data(RAW_URL)
@@ -206,7 +240,7 @@ def test_page():
         # 顯示員工統計表格
         st.subheader("員工統計表")
         stats_df = pd.DataFrame(staff_stats).T
-        stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作']]
+        stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '外出日數']]
         st.table(stats_df)
 
 # 主程式：頁面切換
