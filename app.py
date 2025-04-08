@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from io import StringIO
 import re
+import graph  # 引入 graph.py
 
 # 設置頁面為寬屏模式
 st.set_page_config(layout="wide")
@@ -244,7 +245,7 @@ def style_staff_table(df):
         if row.name == 'Ling' or row.name == 'Kayi':
             return ['background-color: #FFF5BA'] * len(row)  # 粉黃色
         elif row.name == 'Mike':
-            return ['background-color: #FFC1CC'] * len(row)  # 粉紅色
+            return ['background-color: #FFE6E6'] * len(row)  # 更淺的粉紅色
         elif row.name == 'Pong' or row.name == 'Jack':
             return ['background-color: #CCFFCC'] * len(row)  # 粉綠色
         elif row.name == 'Peppy' or row.name == 'Kama':
@@ -253,7 +254,7 @@ def style_staff_table(df):
     
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁（排序和設置顏色）
+# 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -349,6 +350,10 @@ def outing_stats_page():
                 type_counts.columns = ['活動類型', '次數']
                 type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
                 st.dataframe(type_counts, height=200)
+                # 生成活動類型圖表
+                st.write("**活動類型分佈圖：**")
+                fig = graph.create_activity_type_donut_chart(type_counts, "2025年1月 份活動內容")
+                st.pyplot(fig)
             else:
                 st.write("無此欄位")
 
