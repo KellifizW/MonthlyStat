@@ -59,21 +59,18 @@ def extract_home_number(home_name):
     match = re.match(r'^\d{1,3}', str(home_name))
     return match.group(0) if match else None
 
-# 判斷區域並返回員工的區域狀態（新增外區原因）
+# 判斷區域並返回員工的區域狀態
 def check_local(row, github_df):
     home_number = extract_home_number(row['HomeName'])
     resp_staff = row['RespStaff'] if pd.notna(row['RespStaff']) else None
     second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
-    reason = None
 
     if home_number is None:
-        reason = "無法從 HomeName 提取數字"
-        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None, 'reason': reason}
+        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None}
 
     matching_homes = github_df[github_df['Home'].astype(str) == str(home_number)]
     if matching_homes.empty:
-        reason = f"院舍 {home_number} 未在 homelist.csv 中找到"
-        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None, 'reason': reason}
+        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None}
 
     local_staff = set()
     for _, home_row in matching_homes.iterrows():
@@ -84,10 +81,8 @@ def check_local(row, github_df):
 
     resp_region = '本區' if resp_staff in local_staff else '外區'
     second_region = '本區' if second_staff in local_staff else '外區' if second_staff else None
-    if resp_region == '外區':
-        reason = f"{resp_staff} 不在 {home_number} 的 staff1 或 staff2 中"
 
-    return {'resp_region': resp_region, 'second_region': second_region, 'reason': reason}
+    return {'resp_region': resp_region, 'second_region': second_region}
 
 # 轉換員工名稱
 def convert_name(name):
@@ -198,7 +193,7 @@ def calculate_region_stats(df, github_df):
     total_participants = sum(region['participants'] for region in region_stats.values()) if has_participants_column else None
     return region_stats, total_sessions, total_participants
 
-# 獲取員工的詳細記錄（原有功能）
+# 獲取員工的詳細記錄
 def get_staff_details(df, staff_name):
     solo_records = []
     collab_records = []
@@ -244,7 +239,7 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 外出統計程式頁（新增外區計算記錄）
+# 外出統計程式頁（移除總覽統計並並排顯示）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -278,31 +273,41 @@ def outing_stats_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
-        # 應用區域判斷並記錄到數據框（新增外區原因）
-        uploaded_df[['RespRegion', 'SecondRegion', 'Reason']] = uploaded_df.apply(
+        # 應用區域判斷並記錄到數據框
+        uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
 
-        # 統計本區與外區總數並顯示
-        st.subheader("總覽統計")
-        region_counts = uploaded_df['RespRegion'].value_counts()
-        st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
-        st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
+        # 計算員工統計
+        staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
+        if staff_stats is None:
+            st.error("統計計算失敗，請檢查錯誤訊息")
+            return
 
-        # 新增：顯示外區計算記錄
-        st.write("**外區記錄詳細：**")
-        outside_records = uploaded_df[uploaded_df['RespRegion'] == '外區'][
-            ['RespStaff', 'HomeName', 'ServiceDate', 'Reason']
-        ].rename(columns={
-            'RespStaff': '負責員工',
-            'HomeName': '院舍名稱',
-            'ServiceDate': '活動日期',
-            'Reason': '外區原因'
-        })
-        if not outside_records.empty:
-            st.dataframe(outside_records, height=200)
-        else:
-            st.write("無外區記錄")
+        # 計算分區統計節數
+        region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
+
+        # 並排顯示員工統計表和分區統計節數
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("員工統計表")
+            stats_df = pd.DataFrame(staff_stats).T
+            stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
+            stats_df.index.name = '員工'
+            st.dataframe(stats_df, height=300)
+
+        with col2:
+            st.subheader("分區統計節數")
+            region_data = {
+                '分區': list(region_stats.keys()),
+                '節數': [region_stats[region]['count'] for region in region_stats]
+            }
+            if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns:
+                region_data['人次'] = [region_stats[region]['participants'] for region in region_stats]
+            region_df = pd.DataFrame(region_data)
+            region_df.loc[len(region_df)] = ['總計', total_sessions] + ([total_participants] if '人次' in region_df.columns else [])
+            st.dataframe(region_df, height=300)
 
         # 並排顯示 ServiceStatus 和 活動類型 統計
         col1, col2 = st.columns(2)
@@ -326,28 +331,6 @@ def outing_stats_page():
                 st.dataframe(type_counts, height=200)
             else:
                 st.write("無此欄位")
-
-        # 計算員工統計
-        staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
-        if staff_stats is None:
-            st.error("統計計算失敗，請檢查錯誤訊息")
-            return
-
-        # 顯示員工統計表
-        st.subheader("員工統計表")
-        stats_df = pd.DataFrame(staff_stats).T
-        stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
-        stats_df.index.name = '員工'
-        st.dataframe(stats_df, height=300)
-
-        # 計算並顯示分區統計節數
-        st.subheader("分區統計節數")
-        region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
-        for region in region_stats:
-            participants_text = f"，人次: {region_stats[region]['participants']}" if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns else ""
-            st.write(f"{region} 分區: {region_stats[region]['count']} 次{participants_text}")
-        participants_total_text = f"，總人次: {total_participants}" if total_participants is not None else ""
-        st.write(f"總共: {total_sessions} 節{participants_total_text}")
 
         # 分區詳細統計（僅在選擇時顯示）
         st.subheader("分區詳細統計")
