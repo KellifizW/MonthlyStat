@@ -254,7 +254,7 @@ def style_staff_table(df):
     
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁
+# 外出統計程式頁（移除圖表）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -265,6 +265,9 @@ def outing_stats_page():
         uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
         if uploaded_df is None:
             return
+
+        # 儲存上傳的數據到 session_state，以便其他頁面使用
+        st.session_state['uploaded_df'] = uploaded_df
 
         # 轉換員工名稱
         uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
@@ -350,10 +353,6 @@ def outing_stats_page():
                 type_counts.columns = ['活動類型', '次數']
                 type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
                 st.dataframe(type_counts, height=200)
-                # 生成活動類型圖表
-                st.write("**活動類型分佈圖：**")
-                fig = graph.create_activity_type_donut_chart(type_counts, "2025年1月 份活動內容")
-                st.pyplot(fig)
             else:
                 st.write("無此欄位")
 
@@ -406,15 +405,41 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(details['collab_days'])} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(details['all_days'])} → {len(details['all_days'])} 天")
 
+# 統計圖頁面
+def stats_chart_page():
+    st.title("統計圖")
+    st.write("此頁面顯示活動類型的統計圖表。")
+
+    # 檢查是否有上傳的數據
+    if 'uploaded_df' not in st.session_state:
+        st.warning("請先在「外出統計程式」頁面上傳 CSV 檔案以生成圖表。")
+        return
+
+    uploaded_df = st.session_state['uploaded_df']
+
+    if '活動類型' in uploaded_df.columns:
+        type_counts = uploaded_df['活動類型'].value_counts().reset_index()
+        type_counts.columns = ['活動類型', '次數']
+        type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
+        
+        # 顯示圖表
+        st.write("**活動類型分佈圖：**")
+        fig = graph.create_activity_type_donut_chart(type_counts, "2025年1月 份活動內容")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.write("上傳的 CSV 中無「活動類型」欄位，無法生成圖表。")
+
 # 主程式：頁面切換
 def main():
     st.sidebar.title("頁面導航")
-    page = st.sidebar.selectbox("選擇頁面", ["外出統計程式", "列表頁"], index=0)
+    page = st.sidebar.selectbox("選擇頁面", ["外出統計程式", "列表頁", "統計圖"], index=0)
 
     if page == "外出統計程式":
         outing_stats_page()
     elif page == "列表頁":
         list_page()
+    elif page == "統計圖":
+        stats_chart_page()
 
 if __name__ == "__main__":
     main()
