@@ -167,10 +167,13 @@ def calculate_region_stats(df, github_df):
         if pd.isna(staff1) or staff1 not in region_stats:
             continue
 
-        # 更新統計
         region_stats[staff1]['count'] += 1
         region_stats[staff1]['homes'].add(home_number)
-        record = f"{row['RespStaff']} - {row['ServiceDate']} - {row['HomeName']}"
+        record = {
+            'RespStaff': row['RespStaff'],
+            'ServiceDate': row['ServiceDate'],
+            'HomeName': row['HomeName']
+        }
         region_stats[staff1]['records'].append(record)
 
     total_sessions = sum(region['count'] for region in region_stats.values())
@@ -190,13 +193,13 @@ def get_staff_details(df, staff_name):
         home_name = row['HomeName']
 
         if resp_staff == staff_name and not second_staff:
-            solo_records.append(f"{service_date} - {home_name}")
+            solo_records.append({'ServiceDate': service_date, 'HomeName': home_name})
             solo_days.add(service_date)
         elif resp_staff == staff_name and second_staff:
-            collab_records.append(f"{service_date} - {home_name}（與 {second_staff}）")
+            collab_records.append({'ServiceDate': service_date, 'HomeName': home_name, 'Collaborator': second_staff})
             collab_days.add(service_date)
         elif second_staff == staff_name:
-            collab_records.append(f"{service_date} - {home_name}（與 {resp_staff}）")
+            collab_records.append({'ServiceDate': service_date, 'HomeName': home_name, 'Collaborator': resp_staff})
             collab_days.add(service_date)
 
     all_days = solo_days.union(collab_days)
@@ -222,7 +225,7 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 外出統計程式頁（新增分區詳細統計）
+# 外出統計程式頁（優化顯示）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -273,11 +276,12 @@ def outing_stats_page():
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
 
-        # 顯示員工統計表格
+        # 顯示員工統計表（改為互動表格）
         st.subheader("員工統計表")
         stats_df = pd.DataFrame(staff_stats).T
         stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '外出日數']]
-        st.table(stats_df)
+        stats_df.index.name = '員工'
+        st.dataframe(stats_df, height=300)
 
         # 計算並顯示分區統計節數
         st.subheader("分區統計節數")
@@ -288,42 +292,46 @@ def outing_stats_page():
         st.write(f"Peppy 分區: {region_stats['Peppy']['count']} 節")
         st.write(f"總共: {total_sessions} 節")
 
-        # 新增：分區詳細統計下拉清單
+        # 分區詳細統計（僅在選擇時顯示）
         st.subheader("分區詳細統計")
-        region_list = list(region_stats.keys())
-        selected_region = st.selectbox("選擇分區", region_list)
-
-        if selected_region:
+        region_list = ['選擇分區'] + list(region_stats.keys())  # 添加默認選項
+        selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
+        
+        if selected_region != '選擇分區':
             st.write(f"### {selected_region} 分區（{region_stats[selected_region]['count']} 節）")
             homes = sorted(region_stats[selected_region]['homes'])
             st.write(f"相關院舍（staff1 = {selected_region}）：{', '.join(homes)}")
             st.write("記錄清單：")
             if region_stats[selected_region]['records']:
-                for record in region_stats[selected_region]['records']:
-                    st.write(record)
+                records_df = pd.DataFrame(region_stats[selected_region]['records'])
+                records_df = records_df[['RespStaff', 'ServiceDate', 'HomeName']]
+                records_df.columns = ['負責員工', '活動日期', '院舍名稱']
+                st.dataframe(records_df, height=300)
             else:
                 st.write("無記錄")
 
-        # 員工下拉清單（原有功能）
+        # 員工詳細統計（僅在選擇時顯示）
         st.subheader("員工詳細統計")
-        staff_list = list(staff_stats.keys())
-        selected_staff = st.selectbox("選擇員工", staff_list)
+        staff_list = ['選擇員工'] + list(staff_stats.keys())  # 添加默認選項
+        selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
 
-        if selected_staff:
+        if selected_staff != '選擇員工':
             details = get_staff_details(uploaded_df, selected_staff)
             st.write(f"### {selected_staff}")
             
             st.write("**單獨記錄：**")
             if details['solo_records']:
-                for record in details['solo_records']:
-                    st.write(record)
+                solo_df = pd.DataFrame(details['solo_records'])
+                solo_df.columns = ['活動日期', '院舍名稱']
+                st.dataframe(solo_df, height=200)
             else:
                 st.write("無單獨記錄")
 
             st.write("**協作記錄：**")
             if details['collab_records']:
-                for record in details['collab_records']:
-                    st.write(record)
+                collab_df = pd.DataFrame(details['collab_records'])
+                collab_df.columns = ['活動日期', '院舍名稱', '協作者']
+                st.dataframe(collab_df, height=200)
             else:
                 st.write("無協作記錄")
 
