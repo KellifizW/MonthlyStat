@@ -238,7 +238,22 @@ def list_page():
         st.subheader("homelist.csv 內容")
         st.dataframe(df)
 
-# 外出統計程式頁（調整並排比例）
+# 自定義樣式函數（為員工統計表設置顏色）
+def style_staff_table(df):
+    def row_style(row):
+        if row.name == 'Ling' or row.name == 'Kayi':
+            return ['background-color: #FFF5BA'] * len(row)  # 粉黃色
+        elif row.name == 'Mike':
+            return ['background-color: #FFC1CC'] * len(row)  # 粉紅色
+        elif row.name == 'Pong' or row.name == 'Jack':
+            return ['background-color: #CCFFCC'] * len(row)  # 粉綠色
+        elif row.name == 'Peppy' or row.name == 'Kama':
+            return ['background-color: #CCE5FF'] * len(row)  # 粉藍色
+        return [''] * len(row)
+    
+    return df.style.apply(row_style, axis=1)
+
+# 外出統計程式頁（排序和設置顏色）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -294,7 +309,13 @@ def outing_stats_page():
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
-            st.dataframe(stats_df, height=300)
+            # 自定義排序
+            desired_order = ['Ling', 'Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
+            existing_staff = [staff for staff in desired_order if staff in stats_df.index]
+            stats_df = stats_df.reindex(existing_staff)
+            # 應用樣式
+            styled_df = style_staff_table(stats_df)
+            st.dataframe(styled_df, height=300)
 
         with col2:
             st.subheader("分區統計節數")
