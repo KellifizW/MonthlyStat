@@ -7,21 +7,7 @@ import re
 # GitHub Raw URL
 RAW_URL = "https://raw.githubusercontent.com/KellifizW/MonthlyStat/main/homelist.csv"
 
-# 定義預期和必要欄位
-EXPECTED_COLUMNS = [
-    'CaseNumber', 'RespStaffLogin', 'RespStaff', '2ndRespStaffLoginID', '2ndRespStaffName',
-    'CoachedStaffLogin', 'CoachedStaff', 'Dept', 'Id', 'ServiceDate', 'ServiceTime',
-    'CaseName', 'FULL_HKID', 'HomeName', 'HomeType', 'NumberOfSession', 'Remarks',
-    'HomeStaffOrCarer', 'ServiceType', 'DeliveryMode', 'StartTime', 'EndTime',
-    'ActualServiceMin', 'NumberOfParticipant(Without Volunteer Count)', 'NumberOfVolunteer',
-    'SystolicBP', 'DiastolicBP', 'OxygenSaturation', 'PulseRate', 'BodyTemperature',
-    'PostSystolicBP', 'PostDiastolicBP', 'PostOxygenSaturation', 'PostPulseRate',
-    'PostBodyTemperature', 'ProgressNote', 'ServiceRemark', 'ServiceStatus',
-    'LastModifiedBy', 'LastModifiedDate', 'LastModifiedTime', 'ElapseTimeBetweenService',
-    'TotalService', 'TotalQualifiedSession', '活動編號', '活動名稱', '活動類型',
-    '家屬所屬個案/院友編號', '家屬所屬個案/院友名稱'
-]
-
+# 定義必要欄位
 REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'HomeName', 'ServiceDate']
 
 # 讀取 CSV 檔案（Big5HKSCS 編碼）
@@ -62,18 +48,18 @@ def extract_home_number(home_name):
     match = re.match(r'^\d{1,3}', str(home_name))
     return match.group(0) if match else None
 
-# 判斷是否本區
+# 判斷區域並返回員工的區域狀態
 def check_local(row, github_df):
     home_number = extract_home_number(row['HomeName'])
     resp_staff = row['RespStaff'] if pd.notna(row['RespStaff']) else None
     second_staff = row['2ndRespStaffName'] if pd.notna(row['2ndRespStaffName']) else None
 
     if home_number is None:
-        return '外區'
+        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None}
 
     matching_homes = github_df[github_df['Home'].astype(str) == str(home_number)]
     if matching_homes.empty:
-        return '外區'
+        return {'resp_region': '外區', 'second_region': '外區' if second_staff else None}
 
     local_staff = set()
     for _, home_row in matching_homes.iterrows():
@@ -82,9 +68,10 @@ def check_local(row, github_df):
         if pd.notna(home_row['staff2']):
             local_staff.add(home_row['staff2'])
 
-    if (resp_staff in local_staff) or (second_staff in local_staff):
-        return '本區'
-    return '外區'
+    resp_region = '本區' if resp_staff in local_staff else '外區'
+    second_region = '本區' if second_staff in local_staff else '外區' if second_staff else None
+
+    return {'resp_region': resp_region, 'second_region': second_region}
 
 # 計算員工統計
 def calculate_staff_stats(df, github_df):
@@ -112,20 +99,23 @@ def calculate_staff_stats(df, github_df):
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
             }
 
-        region = check_local(row, github_df)
-        is_collaboration = bool(second_staff)
+        regions = check_local(row, github_df)
+        resp_region = regions['resp_region']
+        second_region = regions['second_region']
 
-        if not is_collaboration:
-            if region == '本區':
+        if not second_staff:  # 單獨
+            if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
             else:
                 staff_stats[resp_staff]['外區單獨'] += 1
-        else:
-            if region == '本區':
+        else:  # 協作
+            if resp_region == '本區':
                 staff_stats[resp_staff]['本區協作'] += 1
-                staff_stats[second_staff]['本區協作'] += 1
             else:
                 staff_stats[resp_staff]['外區協作'] += 1
+            if second_region == '本區':
+                staff_stats[second_staff]['本區協作'] += 1
+            else:
                 staff_stats[second_staff]['外區協作'] += 1
 
     return staff_stats
@@ -192,15 +182,17 @@ def test_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
-        # 應用區域判斷
-        uploaded_df['區域'] = uploaded_df.apply(lambda row: check_local(row, github_df), axis=1)
+        # 應用區域判斷並記錄到數據框
+        uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
+            lambda row: pd.Series(check_local(row, github_df)), axis=1
+        )
 
         # 顯示原始數據與區域判斷結果
         st.subheader("判斷結果（含區域）")
         st.dataframe(uploaded_df)
 
         # 統計本區與外區總數
-        region_counts = uploaded_df['區域'].value_counts()
+        region_counts = uploaded_df['RespRegion'].value_counts()
         st.subheader("區域總計")
         st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
