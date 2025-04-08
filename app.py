@@ -86,7 +86,7 @@ def check_local(row, github_df):
         return '本區'
     return '外區'
 
-# 計算員工統計（基於測試頁邏輯）
+# 計算員工統計
 def calculate_staff_stats(df, github_df):
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
@@ -103,7 +103,6 @@ def calculate_staff_stats(df, github_df):
         if pd.isna(resp_staff) or pd.isna(service_date):
             continue
 
-        # 初始化員工統計
         if resp_staff not in staff_stats:
             staff_stats[resp_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
@@ -113,11 +112,9 @@ def calculate_staff_stats(df, github_df):
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0
             }
 
-        # 判斷區域
         region = check_local(row, github_df)
         is_collaboration = bool(second_staff)
 
-        # 根據單獨或協作更新統計
         if not is_collaboration:
             if region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
@@ -149,21 +146,6 @@ def stats_page():
         st.write("以下是前幾行數據：")
         st.dataframe(df.head())
 
-        # 讀取 GitHub 的 homelist.csv
-        github_df = get_github_csv_data(RAW_URL)
-        if github_df is None:
-            return
-
-        staff_stats = calculate_staff_stats(df, github_df)
-        if staff_stats is None:
-            st.error("統計計算失敗，請檢查錯誤訊息")
-            return
-
-        st.subheader("員工活動統計總表")
-        stats_df = pd.DataFrame(staff_stats).T
-        stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作']]
-        st.table(stats_df)
-
 # 列表頁
 def list_page():
     st.title("GitHub homelist.csv 列表")
@@ -180,8 +162,8 @@ def list_page():
 
 # 測試頁
 def test_page():
-    st.title("測試頁：本區/外區判斷")
-    st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 判斷每筆資料是否屬於本區（使用 Big5HKSCS 編碼）。")
+    st.title("測試頁：本區/外區統計")
+    st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數（使用 Big5HKSCS 編碼）。")
     uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="test_uploader")
 
     if uploaded_file is not None:
@@ -198,7 +180,7 @@ def test_page():
         if github_df is None:
             return
 
-        required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName']
+        required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
         required_github_cols = ['Home', 'staff1', 'staff2']
         missing_uploaded = [col for col in required_uploaded_cols if col not in uploaded_df.columns]
         missing_github = [col for col in required_github_cols if col not in github_df.columns]
@@ -210,15 +192,30 @@ def test_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
+        # 應用區域判斷
         uploaded_df['區域'] = uploaded_df.apply(lambda row: check_local(row, github_df), axis=1)
 
-        st.subheader("判斷結果")
+        # 顯示原始數據與區域判斷結果
+        st.subheader("判斷結果（含區域）")
         st.dataframe(uploaded_df)
 
+        # 統計本區與外區總數
         region_counts = uploaded_df['區域'].value_counts()
-        st.subheader("區域統計")
+        st.subheader("區域總計")
         st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
+
+        # 計算員工統計
+        staff_stats = calculate_staff_stats(uploaded_df, github_df)
+        if staff_stats is None:
+            st.error("統計計算失敗，請檢查錯誤訊息")
+            return
+
+        # 顯示員工統計表格
+        st.subheader("員工統計表")
+        stats_df = pd.DataFrame(staff_stats).T
+        stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作']]
+        st.table(stats_df)
 
 # 主程式：頁面切換
 def main():
