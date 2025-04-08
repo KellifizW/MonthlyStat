@@ -88,7 +88,7 @@ def check_local(row, github_df):
 def convert_name(name):
     return NAME_CONVERSION.get(name, name) if pd.notna(name) else name
 
-# 計算員工統計（新增本區總共和全部總共）
+# 計算員工統計（含本區總共和全部總共）
 def calculate_staff_stats(df, github_df):
     missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing_columns:
@@ -140,7 +140,6 @@ def calculate_staff_stats(df, github_df):
             else:
                 staff_stats[second_staff]['外區協作'] += 1
 
-    # 添加外出日數、本區總共和全部總共
     for staff in staff_stats:
         staff_stats[staff]['外出日數'] = len(staff_days[staff])
         staff_stats[staff]['本區總共'] = staff_stats[staff]['本區單獨'] + staff_stats[staff]['本區協作']
@@ -150,7 +149,7 @@ def calculate_staff_stats(df, github_df):
 
     return staff_stats, staff_days
 
-# 計算分區統計節數並返回詳細記錄（新增人次統計）
+# 計算分區統計節數並返回詳細記錄（含人次統計）
 def calculate_region_stats(df, github_df):
     region_stats = {
         'Ling': {'count': 0, 'homes': set(), 'records': [], 'participants': 0},
@@ -183,7 +182,6 @@ def calculate_region_stats(df, github_df):
         }
         region_stats[staff1]['records'].append(record)
 
-        # 計算人次統計
         if has_participants_column and pd.notna(row['NumberOfParticipant(Without Volunteer Count)']):
             try:
                 participants = int(row['NumberOfParticipant(Without Volunteer Count)'])
@@ -241,7 +239,7 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 外出統計程式頁（加入新統計）
+# 外出統計程式頁（新增 ServiceStatus 和 活動類型 統計）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -281,25 +279,45 @@ def outing_stats_page():
         )
 
         # 統計本區與外區總數（原有功能）
+        st.subheader("總覽統計")
         region_counts = uploaded_df['RespRegion'].value_counts()
-        st.subheader("區域總計")
         st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
 
-        # 計算員工統計（新增本區總共和全部總共）
+        # 新增：ServiceStatus 統計
+        if 'ServiceStatus' in uploaded_df.columns:
+            status_counts = uploaded_df['ServiceStatus'].value_counts()
+            st.write("**ServiceStatus 統計：**")
+            for status, count in status_counts.items():
+                st.write(f"{status}: {count} 次")
+            st.write(f"總計: {status_counts.sum()} 次")
+        else:
+            st.write("**ServiceStatus 統計：** 無此欄位")
+
+        # 新增：活動類型 統計
+        if '活動類型' in uploaded_df.columns:
+            type_counts = uploaded_df['活動類型'].value_counts()
+            st.write("**活動類型 統計：**")
+            for activity_type, count in type_counts.items():
+                st.write(f"{activity_type}: {count} 次")
+            st.write(f"總計: {type_counts.sum()} 次")
+        else:
+            st.write("**活動類型 統計：** 無此欄位")
+
+        # 計算員工統計
         staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
         if staff_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
 
-        # 顯示員工統計表（改為互動表格，新增欄位）
+        # 顯示員工統計表
         st.subheader("員工統計表")
         stats_df = pd.DataFrame(staff_stats).T
         stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
         stats_df.index.name = '員工'
         st.dataframe(stats_df, height=300)
 
-        # 計算並顯示分區統計節數（新增人次統計）
+        # 計算並顯示分區統計節數
         st.subheader("分區統計節數")
         region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
         for region in region_stats:
