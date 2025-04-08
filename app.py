@@ -181,22 +181,6 @@ def get_staff_details(df, staff_name):
         'all_days': sorted(all_days)
     }
 
-# 統計頁
-def stats_page():
-    st.title("員工活動統計工具")
-    st.write("請上傳 CSV 檔案以計算員工的本區與外區統計結果（使用 Big5HKSCS 編碼）。")
-    uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="stats_uploader")
-
-    if uploaded_file is not None:
-        st.write("檔案已上傳，名稱:", uploaded_file.name)
-        df, used_encoding = read_csv_with_big5(uploaded_file)
-        if df is None:
-            return
-
-        st.write(f"檔案成功解析，使用編碼: {used_encoding}")
-        st.write("以下是前幾行數據：")
-        st.dataframe(df.head())
-
 # 列表頁
 def list_page():
     st.title("GitHub homelist.csv 列表")
@@ -211,11 +195,11 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 測試頁
-def test_page():
-    st.title("測試頁：本區/外區統計")
+# 外出統計程式頁
+def outing_stats_page():
+    st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數（使用 Big5HKSCS 編碼）。")
-    uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="test_uploader")
+    uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
 
     if uploaded_file is not None:
         st.write("檔案已上傳，名稱:", uploaded_file.name)
@@ -228,8 +212,6 @@ def test_page():
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
 
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
-        st.write("上傳檔案的前幾行數據（已轉換員工名稱）：")
-        st.dataframe(uploaded_df.head())
 
         github_df = get_github_csv_data(RAW_URL)
         if github_df is None:
@@ -247,14 +229,10 @@ def test_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
-        # 應用區域判斷並記錄到數據框
+        # 應用區域判斷並記錄到數據框（僅用於統計，不顯示）
         uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
-
-        # 顯示原始數據與區域判斷結果
-        st.subheader("判斷結果（含區域）")
-        st.dataframe(uploaded_df)
 
         # 統計本區與外區總數
         region_counts = uploaded_df['RespRegion'].value_counts()
@@ -274,7 +252,7 @@ def test_page():
         stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '外出日數']]
         st.table(stats_df)
 
-        # 新增員工下拉清單
+        # 員工下拉清單
         st.subheader("員工詳細統計")
         staff_list = list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list)
@@ -305,14 +283,12 @@ def test_page():
 # 主程式：頁面切換
 def main():
     st.sidebar.title("頁面導航")
-    page = st.sidebar.selectbox("選擇頁面", ["統計頁", "列表頁", "測試頁"])
+    page = st.sidebar.selectbox("選擇頁面", ["外出統計程式", "列表頁"], index=0)  # 默認為「外出統計程式」
 
-    if page == "統計頁":
-        stats_page()
+    if page == "外出統計程式":
+        outing_stats_page()
     elif page == "列表頁":
         list_page()
-    elif page == "測試頁":
-        test_page()
 
 if __name__ == "__main__":
     main()
