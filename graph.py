@@ -32,7 +32,7 @@ def create_activity_type_donut_chart(type_counts, title):
             hoverinfo='text',
             hovertext=hover_text,
             textposition='outside',
-            textfont=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 放大百分比標籤字體
+            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 放大百分比標籤字體
         )
     ])
 
@@ -42,29 +42,29 @@ def create_activity_type_donut_chart(type_counts, title):
         x=0.5,
         y=0.55,
         showarrow=False,
-        font=dict(size=16, family='Microsoft JhengHei, sans-serif')  # 放大字體
+        font=dict(size=18, family='Microsoft JhengHei, sans-serif')  # 放大字體
     )
     fig.add_annotation(
         text=str(total),
         x=0.5,
         y=0.45,
         showarrow=False,
-        font=dict(size=24, family='Microsoft JhengHei, sans-serif')  # 放大字體
+        font=dict(size=28, family='Microsoft JhengHei, sans-serif')  # 放大字體
     )
 
     # 設置圖表佈局
     fig.update_layout(
-        title=dict(text=title, font=dict(size=20, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 放大標題字體
+        title=dict(text=title, font=dict(size=24, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 放大標題字體
         showlegend=True,
         legend=dict(
             title="活動類型",
-            font=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 放大圖例字體
+            font=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 放大圖例字體
             x=1.1,
             y=0.5,
             traceorder='normal'
         ),
         margin=dict(t=50, b=50, l=50, r=150),
-        font=dict(family='Microsoft JhengHei, sans-serif', size=14)  # 設置更大的默認字體
+        font=dict(family='Microsoft JhengHei, sans-serif', size=16)  # 設置更大的默認字體
     )
 
     return fig
