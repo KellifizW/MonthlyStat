@@ -32,7 +32,7 @@ def create_activity_type_donut_chart(type_counts, title):
             hoverinfo='text',
             hovertext=hover_text,
             textposition='outside',
-            textfont=dict(size=12, family='Microsoft JhengHei, sans-serif'),
+            textfont=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 放大百分比標籤字體
         )
     ])
 
@@ -42,44 +42,29 @@ def create_activity_type_donut_chart(type_counts, title):
         x=0.5,
         y=0.55,
         showarrow=False,
-        font=dict(size=14, family='Microsoft JhengHei, sans-serif')
+        font=dict(size=16, family='Microsoft JhengHei, sans-serif')  # 放大字體
     )
     fig.add_annotation(
         text=str(total),
         x=0.5,
         y=0.45,
         showarrow=False,
-        font=dict(size=20, family='Microsoft JhengHei, sans-serif')
-    )
-
-    # 設置最大活動類型的標籤
-    max_idx = values.idxmax()
-    max_label = f"{labels[max_idx]} {percentages[max_idx]:.0f}%"
-    fig.add_annotation(
-        text=max_label,
-        x=1.2,
-        y=0.5,
-        showarrow=False,
-        font=dict(size=12, family='Microsoft JhengHei, sans-serif'),
-        bgcolor="white",
-        bordercolor="black",
-        borderwidth=1,
-        borderpad=4
+        font=dict(size=24, family='Microsoft JhengHei, sans-serif')  # 放大字體
     )
 
     # 設置圖表佈局
     fig.update_layout(
-        title=dict(text=title, font=dict(size=16, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),
+        title=dict(text=title, font=dict(size=20, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 放大標題字體
         showlegend=True,
         legend=dict(
             title="活動類型",
-            font=dict(size=12, family='Microsoft JhengHei, sans-serif'),
+            font=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 放大圖例字體
             x=1.1,
             y=0.5,
             traceorder='normal'
         ),
         margin=dict(t=50, b=50, l=50, r=150),
-        font=dict(family='Microsoft JhengHei, sans-serif')
+        font=dict(family='Microsoft JhengHei, sans-serif', size=14)  # 設置更大的默認字體
     )
 
     return fig
