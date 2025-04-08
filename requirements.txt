@@ -1,4 +1,4 @@
 pandas
 chardet
 python-magic
-matplotlib
+plotly
