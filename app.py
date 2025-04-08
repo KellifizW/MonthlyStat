@@ -239,7 +239,7 @@ def list_page():
         for index, row in df.iterrows():
             st.write(f"第 {index + 1} 行：{row.to_dict()}")
 
-# 外出統計程式頁（新增 ServiceStatus 和 活動類型 統計）
+# 外出統計程式頁（並排顯示 ServiceStatus 和 活動類型）
 def outing_stats_page():
     st.title("外出統計程式")
     st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
@@ -278,31 +278,34 @@ def outing_stats_page():
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
 
-        # 統計本區與外區總數（原有功能）
+        # 統計本區與外區總數並顯示
         st.subheader("總覽統計")
         region_counts = uploaded_df['RespRegion'].value_counts()
         st.write(f"本區記錄數: {region_counts.get('本區', 0)}")
         st.write(f"外區記錄數: {region_counts.get('外區', 0)}")
 
-        # 新增：ServiceStatus 統計
-        if 'ServiceStatus' in uploaded_df.columns:
-            status_counts = uploaded_df['ServiceStatus'].value_counts()
-            st.write("**ServiceStatus 統計：**")
-            for status, count in status_counts.items():
-                st.write(f"{status}: {count} 次")
-            st.write(f"總計: {status_counts.sum()} 次")
-        else:
-            st.write("**ServiceStatus 統計：** 無此欄位")
+        # 並排顯示 ServiceStatus 和 活動類型 統計
+        col1, col2 = st.columns(2)
 
-        # 新增：活動類型 統計
-        if '活動類型' in uploaded_df.columns:
-            type_counts = uploaded_df['活動類型'].value_counts()
+        with col1:
+            st.write("**ServiceStatus 統計：**")
+            if 'ServiceStatus' in uploaded_df.columns:
+                status_counts = uploaded_df['ServiceStatus'].value_counts()
+                for status, count in status_counts.items():
+                    st.write(f"{status}: {count} 次")
+                st.write(f"總計: {status_counts.sum()} 次")
+            else:
+                st.write("無此欄位")
+
+        with col2:
             st.write("**活動類型 統計：**")
-            for activity_type, count in type_counts.items():
-                st.write(f"{activity_type}: {count} 次")
-            st.write(f"總計: {type_counts.sum()} 次")
-        else:
-            st.write("**活動類型 統計：** 無此欄位")
+            if '活動類型' in uploaded_df.columns:
+                type_counts = uploaded_df['活動類型'].value_counts().reset_index()
+                type_counts.columns = ['活動類型', '次數']
+                type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
+                st.dataframe(type_counts, height=200)
+            else:
+                st.write("無此欄位")
 
         # 計算員工統計
         staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
