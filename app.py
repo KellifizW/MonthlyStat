@@ -370,6 +370,16 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
+            # 新增 NumberOfSession 統計
+            st.write("**NumberOfSession 統計：**")
+            if 'NumberOfSession' in uploaded_df.columns:
+                session_counts = uploaded_df['NumberOfSession'].value_counts()
+                for session, count in session_counts.items():
+                    st.write(f"{session}: {count} 次")
+                st.write(f"總計: {session_counts.sum()} 次")
+            else:
+                st.write("無此欄位")
+
         with col2:
             st.write("**活動類型 統計：**")
             if '活動類型' in uploaded_df.columns:
