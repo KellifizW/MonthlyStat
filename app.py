@@ -121,7 +121,7 @@ def calculate_staff_stats(df, github_df):
         return None
 
     staff_stats = {}
-    staff_days =수록
+    staff_days = {}
 
     for index, row in df.iterrows():
         resp_staff = convert_name(row['RespStaff'])
@@ -318,7 +318,7 @@ def outing_stats_page():
         if github_df is None:
             return
 
-        required_uploaded_cols = ['Home= ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
+        required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
         required_github_cols = ['Home', 'staff1', 'staff2']
         missing_uploaded = [col for col in required_uploaded_cols if col not in uploaded_df.columns]
         missing_github = [col for col in required_github_cols if col not in github_df.columns]
