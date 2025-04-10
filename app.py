@@ -17,6 +17,7 @@ REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'HomeName', 'ServiceDate']
 # 名稱轉換字典
 NAME_CONVERSION = {
     '溫?邦': 'Pong',
+    '溫晧邦': 'Pong',
     '譚惠凌': 'Ling',
     '陳發成': 'Jack',
     '林振聲': 'Mike',
