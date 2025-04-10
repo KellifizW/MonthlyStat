@@ -28,11 +28,11 @@ def create_activity_type_donut_chart(type_counts, title):
             values=values,
             hole=0.4,  # 設置環形圖的中心孔大小
             marker=dict(colors=colors[:len(values)], line=dict(color='#FFFFFF', width=2)),
-            textinfo='percent',
+            textinfo='label+percent',  # 顯示活動類型和百分比
+            textposition='inside',  # 活動類型標籤顯示在區塊內部
             hoverinfo='text',
             hovertext=hover_text,
-            textposition='outside',
-            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),
+            textfont=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 調整標籤字體大小
         )
     ])
 
@@ -57,8 +57,8 @@ def create_activity_type_donut_chart(type_counts, title):
         title=dict(text=title, font=dict(size=24, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),
         showlegend=True,
         legend=dict(
-            title=dict(text="活動類型", font=dict(size=18, family='Microsoft JhengHei, sans-serif')),  # 放大圖例標題字體
-            font=dict(size=18, family='Microsoft JhengHei, sans-serif'),  # 放大圖例字體
+            title=dict(text="活動類型", font=dict(size=18, family='Microsoft JhengHei, sans-serif')),
+            font=dict(size=18, family='Microsoft JhengHei, sans-serif'),
             x=1.1,
             y=0.5,
             traceorder='normal'
