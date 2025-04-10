@@ -576,7 +576,7 @@ def stats_chart_page():
             title = "2025年1月 份活動內容"
 
         # 使用 st.columns 實現並列顯示，比例為 3:7
-        col1, col2 = st.columns([3, 7])
+        col1, col2 = st.columns([2, 8])
 
         # 左邊列：調整參數
         with col1:
