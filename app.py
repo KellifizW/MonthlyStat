@@ -54,7 +54,7 @@ def read_file(file):
     elif file_name.endswith('.xlsx'):
         try:
             df = pd.read_excel(file, engine='openpyxl')
-            return df, 'utf-8'  # XLSX 通常使用 UTF-8，僅記錄用，實際不影響讀取
+            return df, 'utf-8'
         except Exception as e:
             st.error(f"無法讀取 XLSX 檔案，請檢查檔案是否有效: {str(e)}")
             return None, None
@@ -451,9 +451,13 @@ def outing_stats_page():
                 st.write("無協作記錄")
 
             st.write("**不重複日期：**")
-            st.write(f"單獨：{', '.join(details['solo_days'])} → {len(details['solo_days'])} 天")
-            st.write(f"協作：{', '.join(details['collab_days'])} → {len(details['collab_days'])} 天")
-            st.write(f"總計：{', '.join(details['all_days'])} → {len(details['all_days'])} 天")
+            # 將 Timestamp 轉換為字符串
+            solo_days_str = [str(day) for day in details['solo_days']]
+            collab_days_str = [str(day) for day in details['collab_days']]
+            all_days_str = [str(day) for day in details['all_days']]
+            st.write(f"單獨：{', '.join(solo_days_str)} → {len(details['solo_days'])} 天")
+            st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
+            st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
 # 統計圖頁面
 def stats_chart_page():
