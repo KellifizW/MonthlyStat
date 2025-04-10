@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from io import StringIO
 import re
-import graph  # 引入 graph.py
+import graph  # 假設你已有 graph.py
 
 # 設置頁面為寬屏模式
 st.set_page_config(layout="wide")
@@ -251,7 +251,26 @@ def get_staff_details(df, staff_name):
         'all_days': sorted(all_days)
     }
 
-# 列表頁（移除列表詳情）
+# 新增：計算院舍活動次數統計
+def calculate_home_activity_stats(df):
+    if 'HomeName' not in df.columns or 'ServiceDate' not in df.columns:
+        st.error("缺少 'HomeName' 或 'ServiceDate' 欄位，無法計算院舍活動次數")
+        return None, None
+
+    # 按 HomeName 分組，計算每間院舍的活動次數
+    home_activity_counts = df.groupby('HomeName').size()  # 目前假設 NumberOfSession 為 1，若不然可用 .sum()
+    # 統計各次數的院舍數量
+    home_counts = home_activity_counts.value_counts().to_dict()
+    # 確保從 1 次開始，補充缺失的次數
+    max_count = max(home_counts.keys(), default=0)
+    home_counts = {i: home_counts.get(i, 0) for i in range(1, max_count + 1)}
+
+    # 儲存每間院舍的活動日期
+    home_details = df.groupby('HomeName')['ServiceDate'].apply(list).to_dict()
+
+    return home_counts, home_details
+
+# 列表頁
 def list_page():
     st.title("GitHub homelist.csv 列表")
     st.write("從 GitHub 儲存庫讀取並顯示 homelist.csv 的內容。")
@@ -289,7 +308,6 @@ def outing_stats_page():
             uploaded_df, used_encoding = read_file(uploaded_file)
             if uploaded_df is None:
                 return
-            # 儲存到 session_state
             st.session_state['uploaded_df'] = uploaded_df
             st.session_state['used_encoding'] = used_encoding
     else:
@@ -300,16 +318,13 @@ def outing_stats_page():
             uploaded_df, used_encoding = read_file(uploaded_file)
             if uploaded_df is None:
                 return
-            # 更新 session_state
             st.session_state['uploaded_df'] = uploaded_df
             st.session_state['used_encoding'] = used_encoding
 
-    # 使用 session_state 中的數據
     uploaded_df = st.session_state['uploaded_df']
     used_encoding = st.session_state['used_encoding']
 
     if uploaded_df is not None:
-        # 轉換員工名稱
         uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
 
@@ -331,33 +346,33 @@ def outing_stats_page():
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
 
-        # 應用區域判斷並記錄到數據框
         uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
 
-        # 計算員工統計
         staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
         if staff_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
 
-        # 計算分區統計節數
         region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
 
-        # 並排顯示員工統計表和分區統計節數（調整比例）
-        col1, col2 = st.columns([7, 3])  # 員工統計表 70%，分區統計節數 30%
+        # 新增：計算院舍活動次數
+        home_counts, home_details = calculate_home_activity_stats(uploaded_df)
+        if home_counts is None:
+            return
+
+        # 並排顯示員工統計表和分區統計節數
+        col1, col2 = st.columns([7, 3])
 
         with col1:
             st.subheader("員工統計表")
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
-            # 自定義排序
             desired_order = ['Ling', 'Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
             existing_staff = [staff for staff in desired_order if staff in stats_df.index]
             stats_df = stats_df.reindex(existing_staff)
-            # 應用樣式
             styled_df = style_staff_table(stats_df)
             st.dataframe(styled_df, height=300)
 
@@ -386,7 +401,6 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-            # 新增 NumberOfSession 統計
             st.write("**NumberOfSession 統計：**")
             if 'NumberOfSession' in uploaded_df.columns:
                 session_counts = uploaded_df['NumberOfSession'].value_counts()
@@ -406,7 +420,7 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-        # 分區詳細統計（僅在選擇時顯示）
+        # 分區詳細統計
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
@@ -425,7 +439,7 @@ def outing_stats_page():
             else:
                 st.write("無記錄")
 
-        # 員工詳細統計（僅在選擇時顯示）
+        # 員工詳細統計
         st.subheader("員工詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
@@ -451,7 +465,6 @@ def outing_stats_page():
                 st.write("無協作記錄")
 
             st.write("**不重複日期：**")
-            # 將 Timestamp 轉換為字符串
             solo_days_str = [str(day) for day in details['solo_days']]
             collab_days_str = [str(day) for day in details['collab_days']]
             all_days_str = [str(day) for day in details['all_days']]
@@ -459,12 +472,34 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
+        # 新增：院舍活動次數統計
+        st.subheader("院舍活動次數統計")
+        st.write("以下顯示各活動次數的院舍數量：")
+        for count, num_homes in home_counts.items():
+            st.write(f"{count} 次活動：{num_homes} 間院舍")
+
+        # 下拉式選單選擇活動次數
+        activity_options = [f"{count} 次" for count in home_counts.keys()]
+        selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
+
+        if selected_activity_count != '選擇次數':
+            count = int(selected_activity_count.split()[0])  # 提取數字部分，例如 "1 次" -> 1
+            # 過濾出符合次數的院舍
+            filtered_homes = {home: dates for home, dates in home_details.items() if len(dates) == count}
+            if filtered_homes:
+                # 準備表格數據
+                home_activity_data = [{'院舍名稱': home, '活動日期': ', '.join(dates)} for home, dates in filtered_homes.items()]
+                home_activity_df = pd.DataFrame(home_activity_data)
+                st.write(f"### 活動次數為 {count} 次的院舍（共 {len(filtered_homes)} 間）")
+                st.dataframe(home_activity_df, height=300)
+            else:
+                st.write(f"沒有活動次數為 {count} 次的院舍")
+
 # 統計圖頁面
 def stats_chart_page():
     st.title("統計圖")
     st.write("此頁面顯示活動類型的統計圖表。")
 
-    # 檢查是否有上傳的數據
     if st.session_state['uploaded_df'] is None:
         st.warning("請先在「外出統計程式」頁面上傳 CSV 或 XLSX 檔案以生成圖表。")
         return
@@ -476,12 +511,9 @@ def stats_chart_page():
         type_counts.columns = ['活動類型', '次數']
         type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
 
-        # 提取 ServiceDate 欄位的年份和月份
         if 'ServiceDate' in uploaded_df.columns:
             try:
-                # 將 ServiceDate 轉換為 datetime 格式
                 uploaded_df['ServiceDate'] = pd.to_datetime(uploaded_df['ServiceDate'], errors='coerce')
-                # 提取年份和月份（假設數據中所有日期在同一年和同一月）
                 year = uploaded_df['ServiceDate'].dt.year.iloc[0]
                 month = uploaded_df['ServiceDate'].dt.month.iloc[0]
                 title = f"{year}年{month}月 份活動內容"
@@ -492,7 +524,6 @@ def stats_chart_page():
             st.warning("上傳的檔案中無 ServiceDate 欄位，使用默認標題。")
             title = "2025年1月 份活動內容"
         
-        # 顯示圖表
         st.write("**活動類型分佈圖：**")
         fig = graph.create_activity_type_donut_chart(type_counts, title)
         st.plotly_chart(fig, use_container_width=True)
