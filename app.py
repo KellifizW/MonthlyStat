@@ -575,26 +575,31 @@ def stats_chart_page():
             st.warning("上傳的檔案中無 ServiceDate 欄位，使用默認標題。")
             title = "2025年1月 份活動內容"
 
-        # 添加動態調整選項，使用 st.expander 節省空間
-        with st.expander("調整圖表參數", expanded=False):
-            chart_width = st.slider("圖表寬度", min_value=600, max_value=1200, value=800, step=50, help="調整圖表寬度")
-            chart_height = st.slider("圖表高度", min_value=400, max_value=800, value=600, step=50, help="調整圖表高度")
-            chart_font_size = st.slider("圖表字體大小（標籤和圖例）", min_value=10, max_value=30, value=16, step=1, help="調整標籤和圖例字體大小")
-            center_text_size = st.slider("中心文字字體大小", min_value=10, max_value=30, value=18, step=1, help="調整中心文字（院舍數目和數字）字體大小")
-            title_font_size = st.slider("標題字體大小", min_value=10, max_value=40, value=24, step=1, help="調整標題字體大小")
+        # 使用 st.columns 實現並列顯示，比例為 3:7
+        col1, col2 = st.columns([3, 7])
 
-        # 繪製圖表
-        st.write("**活動類型分佈圖：**")
-        fig = graph.create_activity_type_donut_chart(
-            type_counts, 
-            title, 
-            chart_width=chart_width, 
-            chart_height=chart_height, 
-            chart_font_size=chart_font_size, 
-            center_text_size=center_text_size, 
-            title_font_size=title_font_size
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        # 左邊列：調整參數
+        with col1:
+            with st.expander("調整圖表參數", expanded=True):  # 默認展開
+                chart_width = st.slider("圖表寬度", min_value=600, max_value=1200, value=800, step=50, help="調整圖表寬度")
+                chart_height = st.slider("圖表高度", min_value=400, max_value=800, value=600, step=50, help="調整圖表高度")
+                chart_font_size = st.slider("圖表字體大小（標籤和圖例）", min_value=10, max_value=30, value=16, step=1, help="調整標籤和圖例字體大小")
+                center_text_size = st.slider("中心文字字體大小", min_value=10, max_value=30, value=18, step=1, help="調整中心文字（院舍數目和數字）字體大小")
+                title_font_size = st.slider("標題字體大小", min_value=10, max_value=40, value=24, step=1, help="調整標題字體大小")
+
+        # 右邊列：圓形圖
+        with col2:
+            st.write("**活動類型分佈圖：**")
+            fig = graph.create_activity_type_donut_chart(
+                type_counts, 
+                title, 
+                chart_width=chart_width, 
+                chart_height=chart_height, 
+                chart_font_size=chart_font_size, 
+                center_text_size=center_text_size, 
+                title_font_size=title_font_size
+            )
+            st.plotly_chart(fig, use_container_width=True)
     else:
         st.write("上傳的檔案中無「活動類型」欄位，無法生成圖表。")
 
