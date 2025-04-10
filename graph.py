@@ -1,11 +1,20 @@
 import plotly.graph_objects as go
 import pandas as pd
 
-def create_activity_type_donut_chart(type_counts, title):
+def create_activity_type_donut_chart(type_counts, title, chart_width=800, chart_height=600, 
+                                     label_font_size=16, legend_font_size=18, 
+                                     center_text_size_1=18, center_text_size_2=28, title_font_size=24):
     """
     創建活動類型的環形圖（使用 Plotly）
     :param type_counts: DataFrame，包含 '活動類型' 和 '次數' 兩欄
     :param title: 圖表標題
+    :param chart_width: 圖表寬度
+    :param chart_height: 圖表高度
+    :param label_font_size: 標籤字體大小（活動類型和百分比）
+    :param legend_font_size: 圖例字體大小
+    :param center_text_size_1: 中心文字「院舍數目」的字體大小
+    :param center_text_size_2: 中心數字的字體大小
+    :param title_font_size: 標題字體大小
     :return: Plotly Figure 對象
     """
     # 移除 '總計' 行
@@ -33,7 +42,7 @@ def create_activity_type_donut_chart(type_counts, title):
             insidetextorientation='horizontal',  # 強制內部標籤水平顯示
             hoverinfo='text',
             hovertext=hover_text,
-            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 保持字體大小為 16
+            textfont=dict(size=label_font_size, family='Microsoft JhengHei, sans-serif'),  # 使用動態標籤字體大小
         )
     ])
 
@@ -43,30 +52,30 @@ def create_activity_type_donut_chart(type_counts, title):
         x=0.5,
         y=0.55,
         showarrow=False,
-        font=dict(size=18, family='Microsoft JhengHei, sans-serif')  # 保持字體大小為 18
+        font=dict(size=center_text_size_1, family='Microsoft JhengHei, sans-serif')  # 使用動態中心文字字體大小
     )
     fig.add_annotation(
         text=str(total),
         x=0.5,
         y=0.45,
         showarrow=False,
-        font=dict(size=28, family='Microsoft JhengHei, sans-serif')  # 保持字體大小為 28
+        font=dict(size=center_text_size_2, family='Microsoft JhengHei, sans-serif')  # 使用動態中心數字字體大小
     )
 
     # 設置圖表佈局
     fig.update_layout(
-        title=dict(text=title, font=dict(size=24, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 保持標題字體大小為 24
+        title=dict(text=title, font=dict(size=title_font_size, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 使用動態標題字體大小
         showlegend=True,
         legend=dict(
-            title=dict(text="活動類型", font=dict(size=18, family='Microsoft JhengHei, sans-serif')),
-            font=dict(size=18, family='Microsoft JhengHei, sans-serif'),  # 保持圖例字體大小為 18
-            x=1.4,  # 將圖例進一步向右移動，避免與標籤重疊
+            title=dict(text="活動類型", font=dict(size=legend_font_size, family='Microsoft JhengHei, sans-serif')),
+            font=dict(size=legend_font_size, family='Microsoft JhengHei, sans-serif'),  # 使用動態圖例字體大小
+            x=1.4,
             y=0.5,
             traceorder='normal'
         ),
         margin=dict(t=200, b=100, l=100, r=300),  # 保持邊距，確保外部標籤有空間
-        width=800,  # 縮小圖表寬度
-        height=600,  # 縮小圖表高度
+        width=chart_width,  # 使用動態圖表寬度
+        height=chart_height,  # 使用動態圖表高度
         font=dict(family='Microsoft JhengHei, sans-serif', size=16)
     )
 
