@@ -33,7 +33,7 @@ def create_activity_type_donut_chart(type_counts, title):
             insidetextorientation='horizontal',  # 強制內部標籤水平顯示
             hoverinfo='text',
             hovertext=hover_text,
-            textfont=dict(size=12, family='Microsoft JhengHei, sans-serif'),  # 減小字體大小，避免重疊
+            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 放大字體大小為 16
         )
     ])
 
@@ -60,13 +60,13 @@ def create_activity_type_donut_chart(type_counts, title):
         legend=dict(
             title=dict(text="活動類型", font=dict(size=18, family='Microsoft JhengHei, sans-serif')),
             font=dict(size=18, family='Microsoft JhengHei, sans-serif'),
-            x=1.2,
+            x=1.3,  # 將圖例向右移動，避免與標籤重疊
             y=0.5,
             traceorder='normal'
         ),
-        margin=dict(t=150, b=100, l=100, r=250),  # 增加邊距，特別是上邊距和右邊距
-        width=1000,  # 增加圖表寬度
-        height=700,  # 增加圖表高度
+        margin=dict(t=200, b=100, l=100, r=300),  # 進一步增加邊距，特別是上邊距和右邊距
+        width=1200,  # 進一步增加圖表寬度
+        height=800,  # 進一步增加圖表高度
         font=dict(family='Microsoft JhengHei, sans-serif', size=16)
     )
 
