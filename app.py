@@ -283,6 +283,7 @@ def list_page():
     df = get_github_csv_data(RAW_URL)
     if df is not None:
         st.subheader("homelist.csv 內容")
+        df.index = df.index + 1  # 索引從 1 開始
         st.dataframe(df)
 
 # 自定義樣式函數（為員工統計表設置顏色）
@@ -391,6 +392,7 @@ def outing_stats_page():
                 region_data['人次'] = [region_stats[region]['participants'] for region in region_stats]
             region_df = pd.DataFrame(region_data)
             region_df.loc[len(region_df)] = ['總計', total_sessions] + ([total_participants] if '人次' in region_df.columns else [])
+            region_df.index = region_df.index + 1  # 索引從 1 開始
             st.dataframe(region_df, height=300)
 
         # 並排顯示 ServiceStatus 和 活動類型 統計
@@ -415,12 +417,24 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
+            # 院舍活動次數統計（互動表格）
+            st.write("**院舍活動次數統計：**")
+            home_activity_data = [
+                {'活動次數': count, '院舍數目': num_homes, '總節數': count * num_homes}
+                for count, num_homes in home_counts.items()
+            ]
+            home_activity_df = pd.DataFrame(home_activity_data)
+            home_activity_df.loc[len(home_activity_df)] = ['總計', home_activity_df['院舍數目'].sum(), home_activity_df['總節數'].sum()]
+            home_activity_df.index = home_activity_df.index + 1  # 索引從 1 開始
+            st.dataframe(home_activity_df, height=200)
+
         with col2:
             st.write("**活動類型 統計：**")
             if '活動類型' in uploaded_df.columns:
                 type_counts = uploaded_df['活動類型'].value_counts().reset_index()
                 type_counts.columns = ['活動類型', '次數']
                 type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
+                type_counts.index = type_counts.index + 1  # 索引從 1 開始
                 st.dataframe(type_counts, height=200)
             else:
                 st.write("無此欄位")
@@ -440,6 +454,7 @@ def outing_stats_page():
                 records_df = pd.DataFrame(region_stats[selected_region]['records'])
                 records_df = records_df[['RespStaff', 'ServiceDate', 'HomeName']]
                 records_df.columns = ['負責員工', '活動日期', '院舍名稱']
+                records_df.index = records_df.index + 1  # 索引從 1 開始
                 st.dataframe(records_df, height=300)
             else:
                 st.write("無記錄")
@@ -457,6 +472,7 @@ def outing_stats_page():
             if details['solo_records']:
                 solo_df = pd.DataFrame(details['solo_records'])
                 solo_df.columns = ['活動日期', '院舍名稱']
+                solo_df.index = solo_df.index + 1  # 索引從 1 開始
                 st.dataframe(solo_df, height=200)
             else:
                 st.write("無單獨記錄")
@@ -465,6 +481,7 @@ def outing_stats_page():
             if details['collab_records']:
                 collab_df = pd.DataFrame(details['collab_records'])
                 collab_df.columns = ['活動日期', '院舍名稱', '協作者']
+                collab_df.index = collab_df.index + 1  # 索引從 1 開始
                 st.dataframe(collab_df, height=200)
             else:
                 st.write("無協作記錄")
@@ -477,13 +494,8 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
-        # 院舍活動次數統計
-        st.subheader("院舍活動次數統計")
-        st.write("以下顯示各活動次數的院舍數量：")
-        for count, num_homes in home_counts.items():
-            st.write(f"{count} 次活動：{num_homes} 間院舍")
-
-        # 下拉式選單選擇活動次數
+        # 院舍活動次數詳細統計（下拉清單）
+        st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
         selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
 
@@ -498,12 +510,13 @@ def outing_stats_page():
                     for home, dates in filtered_homes.items()
                 ]
                 home_activity_df = pd.DataFrame(home_activity_data)
+                home_activity_df.index = home_activity_df.index + 1  # 索引從 1 開始
                 st.write(f"### 活動次數為 {count} 次的院舍（共 {len(filtered_homes)} 間）")
                 st.dataframe(home_activity_df, height=300)
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
-        # 新增：活動類型詳細統計
+        # 活動類型詳細統計
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
@@ -518,6 +531,7 @@ def outing_stats_page():
                 ]
                 activity_type_df = pd.DataFrame(activity_type_data)
                 activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum()]
+                activity_type_df.index = activity_type_df.index + 1  # 索引從 1 開始
                 st.dataframe(activity_type_df, height=300)
             else:
                 st.write("此分區無活動類型記錄")
@@ -537,6 +551,7 @@ def stats_chart_page():
         type_counts = uploaded_df['活動類型'].value_counts().reset_index()
         type_counts.columns = ['活動類型', '次數']
         type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
+        type_counts.index = type_counts.index + 1  # 索引從 1 開始
 
         if 'ServiceDate' in uploaded_df.columns:
             try:
