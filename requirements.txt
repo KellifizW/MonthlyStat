@@ -2,3 +2,5 @@ pandas
 chardet
 python-magic
 plotly
+openpyxl
+requests
