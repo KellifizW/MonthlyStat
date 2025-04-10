@@ -175,16 +175,17 @@ def calculate_staff_stats(df, github_df):
 
     return staff_stats, staff_days
 
-# 計算分區統計節數並返回詳細記錄（含人次統計）
+# 計算分區統計節數並返回詳細記錄（含人次和活動類型統計）
 def calculate_region_stats(df, github_df):
     region_stats = {
-        'Ling': {'count': 0, 'homes': set(), 'records': [], 'participants': 0},
-        'Mike': {'count': 0, 'homes': set(), 'records': [], 'participants': 0},
-        'Pong': {'count': 0, 'homes': set(), 'records': [], 'participants': 0},
-        'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0}
+        'Ling': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
+        'Mike': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
+        'Pong': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
+        'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}}
     }
 
     has_participants_column = 'NumberOfParticipant(Without Volunteer Count)' in df.columns
+    has_activity_type_column = '活動類型' in df.columns
 
     for index, row in df.iterrows():
         home_number = extract_home_number(row['HomeName'])
@@ -214,6 +215,10 @@ def calculate_region_stats(df, github_df):
                 region_stats[staff1]['participants'] += participants
             except ValueError:
                 continue
+
+        if has_activity_type_column and pd.notna(row['活動類型']):
+            activity_type = row['活動類型']
+            region_stats[staff1]['activity_types'][activity_type] = region_stats[staff1]['activity_types'].get(activity_type, 0) + 1
 
     total_sessions = sum(region['count'] for region in region_stats.values())
     total_participants = sum(region['participants'] for region in region_stats.values()) if has_participants_column else None
@@ -366,7 +371,7 @@ def outing_stats_page():
         col1, col2 = st.columns([7, 3])
 
         with col1:
-            st.subheader("員工統計表")
+            st.subheader("員工外出統計表")
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
@@ -440,7 +445,7 @@ def outing_stats_page():
                 st.write("無記錄")
 
         # 員工詳細統計
-        st.subheader("員工詳細統計")
+        st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
 
@@ -487,9 +492,9 @@ def outing_stats_page():
             # 過濾出符合次數的院舍
             filtered_homes = {home: dates for home, dates in home_details.items() if len(dates) == count}
             if filtered_homes:
-                # 準備表格數據，確保日期轉為字符串
+                # 準備表格數據，移除時間部分
                 home_activity_data = [
-                    {'院舍名稱': home, '活動日期': ', '.join(str(date) for date in dates)}
+                    {'院舍名稱': home, '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in dates)}
                     for home, dates in filtered_homes.items()
                 ]
                 home_activity_df = pd.DataFrame(home_activity_data)
@@ -497,6 +502,25 @@ def outing_stats_page():
                 st.dataframe(home_activity_df, height=300)
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
+
+        # 新增：活動類型詳細統計
+        st.subheader("活動類型詳細統計")
+        region_list = ['選擇分區'] + list(region_stats.keys())
+        selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
+
+        if selected_activity_region != '選擇分區':
+            st.write(f"### {selected_activity_region} 分區活動類型統計")
+            activity_types = region_stats[selected_activity_region]['activity_types']
+            if activity_types:
+                activity_type_data = [
+                    {'活動類型': activity, '節數': count}
+                    for activity, count in activity_types.items()
+                ]
+                activity_type_df = pd.DataFrame(activity_type_data)
+                activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum()]
+                st.dataframe(activity_type_df, height=300)
+            else:
+                st.write("此分區無活動類型記錄")
 
 # 統計圖頁面
 def stats_chart_page():
