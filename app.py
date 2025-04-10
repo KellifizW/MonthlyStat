@@ -251,7 +251,7 @@ def get_staff_details(df, staff_name):
         'all_days': sorted(all_days)
     }
 
-# 新增：計算院舍活動次數統計
+# 計算院舍活動次數統計
 def calculate_home_activity_stats(df):
     if 'HomeName' not in df.columns or 'ServiceDate' not in df.columns:
         st.error("缺少 'HomeName' 或 'ServiceDate' 欄位，無法計算院舍活動次數")
@@ -357,7 +357,7 @@ def outing_stats_page():
 
         region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
 
-        # 新增：計算院舍活動次數
+        # 計算院舍活動次數
         home_counts, home_details = calculate_home_activity_stats(uploaded_df)
         if home_counts is None:
             return
@@ -472,7 +472,7 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
-        # 新增：院舍活動次數統計
+        # 院舍活動次數統計
         st.subheader("院舍活動次數統計")
         st.write("以下顯示各活動次數的院舍數量：")
         for count, num_homes in home_counts.items():
@@ -487,8 +487,11 @@ def outing_stats_page():
             # 過濾出符合次數的院舍
             filtered_homes = {home: dates for home, dates in home_details.items() if len(dates) == count}
             if filtered_homes:
-                # 準備表格數據
-                home_activity_data = [{'院舍名稱': home, '活動日期': ', '.join(dates)} for home, dates in filtered_homes.items()]
+                # 準備表格數據，確保日期轉為字符串
+                home_activity_data = [
+                    {'院舍名稱': home, '活動日期': ', '.join(str(date) for date in dates)}
+                    for home, dates in filtered_homes.items()
+                ]
                 home_activity_df = pd.DataFrame(home_activity_data)
                 st.write(f"### 活動次數為 {count} 次的院舍（共 {len(filtered_homes)} 間）")
                 st.dataframe(home_activity_df, height=300)
