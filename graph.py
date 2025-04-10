@@ -21,6 +21,9 @@ def create_activity_type_donut_chart(type_counts, title):
     percentages = [value / total * 100 for value in values]
     hover_text = [f"{label}: {value} 次 ({percent:.0f}%)" for label, value, percent in zip(labels, values, percentages)]
 
+    # 動態設置 textposition：如果百分比小於 5%，標籤放在外部，否則放在內部
+    text_positions = ['inside' if percent >= 5 else 'outside' for percent in percentages]
+
     # 創建環形圖
     fig = go.Figure(data=[
         go.Pie(
@@ -29,10 +32,10 @@ def create_activity_type_donut_chart(type_counts, title):
             hole=0.4,  # 設置環形圖的中心孔大小
             marker=dict(colors=colors[:len(values)], line=dict(color='#FFFFFF', width=2)),
             textinfo='label+percent',  # 顯示活動類型和百分比
-            textposition='inside',  # 活動類型標籤顯示在區塊內部
+            textposition=text_positions,  # 動態設置標籤位置
             hoverinfo='text',
             hovertext=hover_text,
-            textfont=dict(size=14, family='Microsoft JhengHei, sans-serif'),  # 調整標籤字體大小
+            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 固定字體大小為 16
         )
     ])
 
@@ -63,7 +66,7 @@ def create_activity_type_donut_chart(type_counts, title):
             y=0.5,
             traceorder='normal'
         ),
-        margin=dict(t=50, b=50, l=50, r=150),
+        margin=dict(t=50, b=50, l=50, r=150),  # 確保外部標籤有足夠空間
         font=dict(family='Microsoft JhengHei, sans-serif', size=16)
     )
 
