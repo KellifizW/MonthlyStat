@@ -33,7 +33,7 @@ def create_activity_type_donut_chart(type_counts, title):
             insidetextorientation='horizontal',  # 強制內部標籤水平顯示
             hoverinfo='text',
             hovertext=hover_text,
-            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 放大字體大小為 16
+            textfont=dict(size=16, family='Microsoft JhengHei, sans-serif'),  # 保持字體大小為 16
         )
     ])
 
@@ -43,30 +43,30 @@ def create_activity_type_donut_chart(type_counts, title):
         x=0.5,
         y=0.55,
         showarrow=False,
-        font=dict(size=18, family='Microsoft JhengHei, sans-serif')
+        font=dict(size=18, family='Microsoft JhengHei, sans-serif')  # 保持字體大小為 18
     )
     fig.add_annotation(
         text=str(total),
         x=0.5,
         y=0.45,
         showarrow=False,
-        font=dict(size=28, family='Microsoft JhengHei, sans-serif')
+        font=dict(size=28, family='Microsoft JhengHei, sans-serif')  # 保持字體大小為 28
     )
 
     # 設置圖表佈局
     fig.update_layout(
-        title=dict(text=title, font=dict(size=24, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),
+        title=dict(text=title, font=dict(size=24, family='Microsoft JhengHei, sans-serif'), x=0.5, xanchor='center'),  # 保持標題字體大小為 24
         showlegend=True,
         legend=dict(
             title=dict(text="活動類型", font=dict(size=18, family='Microsoft JhengHei, sans-serif')),
-            font=dict(size=18, family='Microsoft JhengHei, sans-serif'),
-            x=1.3,  # 將圖例向右移動，避免與標籤重疊
+            font=dict(size=18, family='Microsoft JhengHei, sans-serif'),  # 保持圖例字體大小為 18
+            x=1.4,  # 將圖例進一步向右移動，避免與標籤重疊
             y=0.5,
             traceorder='normal'
         ),
-        margin=dict(t=200, b=100, l=100, r=300),  # 進一步增加邊距，特別是上邊距和右邊距
-        width=1200,  # 進一步增加圖表寬度
-        height=800,  # 進一步增加圖表高度
+        margin=dict(t=200, b=100, l=100, r=300),  # 保持邊距，確保外部標籤有空間
+        width=800,  # 縮小圖表寬度
+        height=600,  # 縮小圖表高度
         font=dict(family='Microsoft JhengHei, sans-serif', size=16)
     )
 
