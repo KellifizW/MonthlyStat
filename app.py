@@ -218,7 +218,9 @@ def calculate_region_stats(df, github_df):
 
         if has_activity_type_column and pd.notna(row['活動類型']):
             activity_type = row['活動類型']
-            region_stats[staff1]['activity_types'][activity_type] = region_stats[staff1]['activity_types'].get(activity_type, 0) + 1
+            region_stats[staff1]['activity_types'][activity_type] = region_stats[staff1]['activity_types'].get(activity_type, {'count': 0, 'dates': []})
+            region_stats[staff1]['activity_types'][activity_type]['count'] += 1
+            region_stats[staff1]['activity_types'][activity_type]['dates'].append(row['ServiceDate'])
 
     total_sessions = sum(region['count'] for region in region_stats.values())
     total_participants = sum(region['participants'] for region in region_stats.values()) if has_participants_column else None
@@ -452,6 +454,7 @@ def outing_stats_page():
             st.write("記錄清單：")
             if region_stats[selected_region]['records']:
                 records_df = pd.DataFrame(region_stats[selected_region]['records'])
+                records_df['ServiceDate'] = records_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 records_df = records_df[['RespStaff', 'ServiceDate', 'HomeName']]
                 records_df.columns = ['負責員工', '活動日期', '院舍名稱']
                 records_df.index = records_df.index + 1  # 索引從 1 開始
@@ -471,6 +474,7 @@ def outing_stats_page():
             st.write("**單獨記錄：**")
             if details['solo_records']:
                 solo_df = pd.DataFrame(details['solo_records'])
+                solo_df['ServiceDate'] = solo_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 solo_df.columns = ['活動日期', '院舍名稱']
                 solo_df.index = solo_df.index + 1  # 索引從 1 開始
                 st.dataframe(solo_df, height=200)
@@ -480,6 +484,7 @@ def outing_stats_page():
             st.write("**協作記錄：**")
             if details['collab_records']:
                 collab_df = pd.DataFrame(details['collab_records'])
+                collab_df['ServiceDate'] = collab_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 collab_df.columns = ['活動日期', '院舍名稱', '協作者']
                 collab_df.index = collab_df.index + 1  # 索引從 1 開始
                 st.dataframe(collab_df, height=200)
@@ -487,9 +492,9 @@ def outing_stats_page():
                 st.write("無協作記錄")
 
             st.write("**不重複日期：**")
-            solo_days_str = [str(day) for day in details['solo_days']]
-            collab_days_str = [str(day) for day in details['collab_days']]
-            all_days_str = [str(day) for day in details['all_days']]
+            solo_days_str = [pd.to_datetime(day).strftime('%Y-%m-%d') for day in details['solo_days']]
+            collab_days_str = [pd.to_datetime(day).strftime('%Y-%m-%d') for day in details['collab_days']]
+            all_days_str = [pd.to_datetime(day).strftime('%Y-%m-%d') for day in details['all_days']]
             st.write(f"單獨：{', '.join(solo_days_str)} → {len(details['solo_days'])} 天")
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
@@ -526,11 +531,15 @@ def outing_stats_page():
             activity_types = region_stats[selected_activity_region]['activity_types']
             if activity_types:
                 activity_type_data = [
-                    {'活動類型': activity, '節數': count}
-                    for activity, count in activity_types.items()
+                    {
+                        '活動類型': activity,
+                        '節數': details['count'],
+                        '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in details['dates'])
+                    }
+                    for activity, details in activity_types.items()
                 ]
                 activity_type_df = pd.DataFrame(activity_type_data)
-                activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum()]
+                activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum(), '']
                 activity_type_df.index = activity_type_df.index + 1  # 索引從 1 開始
                 st.dataframe(activity_type_df, height=300)
             else:
