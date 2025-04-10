@@ -31,20 +31,35 @@ if 'uploaded_df' not in st.session_state:
 if 'used_encoding' not in st.session_state:
     st.session_state['used_encoding'] = None
 
-# 讀取 CSV 檔案（Big5HKSCS 編碼）
-def read_csv_with_big5(file):
+# 通用檔案讀取函數（支援 CSV 和 XLSX）
+def read_file(file):
     file.seek(0)
-    encoding = 'big5hkscs'
-    separators = [',', '\t']
-    sample = file.read(1024).decode(encoding, errors='replace')
-    file.seek(0)
-    separator = max(separators, key=lambda sep: sample.count(sep))
+    file_name = file.name.lower()
 
-    try:
-        df = pd.read_csv(file, encoding=encoding, sep=separator, on_bad_lines='warn')
-        return df, encoding
-    except Exception as e:
-        st.error(f"無法讀取檔案，請檢查檔案是否為有效的 CSV: {str(e)}")
+    if file_name.endswith('.csv'):
+        encoding = 'big5hkscs'
+        separators = [',', '\t']
+        sample = file.read(1024).decode(encoding, errors='replace')
+        file.seek(0)
+        separator = max(separators, key=lambda sep: sample.count(sep))
+
+        try:
+            df = pd.read_csv(file, encoding=encoding, sep=separator, on_bad_lines='warn')
+            return df, encoding
+        except Exception as e:
+            st.error(f"無法讀取 CSV 檔案，請檢查檔案是否有效: {str(e)}")
+            return None, None
+
+    elif file_name.endswith('.xlsx'):
+        try:
+            df = pd.read_excel(file, engine='openpyxl')
+            return df, 'utf-8'  # XLSX 通常使用 UTF-8，僅記錄用，實際不影響讀取
+        except Exception as e:
+            st.error(f"無法讀取 XLSX 檔案，請檢查檔案是否有效: {str(e)}")
+            return None, None
+
+    else:
+        st.error("不支援的檔案格式，請上傳 .csv 或 .xlsx 檔案")
         return None, None
 
 # 從 GitHub 讀取 homelist.csv
@@ -106,7 +121,7 @@ def calculate_staff_stats(df, github_df):
         return None
 
     staff_stats = {}
-    staff_days = {}
+    staff_days =수록
 
     for index, row in df.iterrows():
         resp_staff = convert_name(row['RespStaff'])
@@ -263,14 +278,14 @@ def style_staff_table(df):
 # 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
-    st.write("請上傳 CSV 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（使用 Big5HKSCS 編碼）。")
+    st.write("請上傳 CSV 或 XLSX 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（CSV 使用 Big5HKSCS 編碼）。")
 
     # 檢查是否已經有上傳的數據
     if st.session_state['uploaded_df'] is None:
-        uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
+        uploaded_file = st.file_uploader("選擇 CSV 或 XLSX 檔案", type=["csv", "xlsx"], key="outing_uploader")
         if uploaded_file is not None:
             st.write("檔案已上傳，名稱:", uploaded_file.name)
-            uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
+            uploaded_df, used_encoding = read_file(uploaded_file)
             if uploaded_df is None:
                 return
             # 儲存到 session_state
@@ -278,10 +293,10 @@ def outing_stats_page():
             st.session_state['used_encoding'] = used_encoding
     else:
         st.write("已使用之前上傳的檔案，若需更換請重新上傳。")
-        uploaded_file = st.file_uploader("選擇 CSV 檔案", type=["csv"], key="outing_uploader")
+        uploaded_file = st.file_uploader("選擇 CSV 或 XLSX 檔案", type=["csv", "xlsx"], key="outing_uploader")
         if uploaded_file is not None:
             st.write("檔案已上傳，名稱:", uploaded_file.name)
-            uploaded_df, used_encoding = read_csv_with_big5(uploaded_file)
+            uploaded_df, used_encoding = read_file(uploaded_file)
             if uploaded_df is None:
                 return
             # 更新 session_state
@@ -303,13 +318,13 @@ def outing_stats_page():
         if github_df is None:
             return
 
-        required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
+        required_uploaded_cols = ['Home= ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
         required_github_cols = ['Home', 'staff1', 'staff2']
         missing_uploaded = [col for col in required_uploaded_cols if col not in uploaded_df.columns]
         missing_github = [col for col in required_github_cols if col not in github_df.columns]
 
         if missing_uploaded:
-            st.error(f"上傳的 CSV 缺少必要欄位: {missing_uploaded}")
+            st.error(f"上傳的檔案缺少必要欄位: {missing_uploaded}")
             return
         if missing_github:
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
@@ -446,7 +461,7 @@ def stats_chart_page():
 
     # 檢查是否有上傳的數據
     if st.session_state['uploaded_df'] is None:
-        st.warning("請先在「外出統計程式」頁面上傳 CSV 檔案以生成圖表。")
+        st.warning("請先在「外出統計程式」頁面上傳 CSV 或 XLSX 檔案以生成圖表。")
         return
 
     uploaded_df = st.session_state['uploaded_df']
@@ -469,7 +484,7 @@ def stats_chart_page():
                 st.warning(f"無法解析 ServiceDate 欄位：{str(e)}，使用默認標題。")
                 title = "2025年1月 份活動內容"
         else:
-            st.warning("上傳的 CSV 中無 ServiceDate 欄位，使用默認標題。")
+            st.warning("上傳的檔案中無 ServiceDate 欄位，使用默認標題。")
             title = "2025年1月 份活動內容"
         
         # 顯示圖表
@@ -477,7 +492,7 @@ def stats_chart_page():
         fig = graph.create_activity_type_donut_chart(type_counts, title)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.write("上傳的 CSV 中無「活動類型」欄位，無法生成圖表。")
+        st.write("上傳的檔案中無「活動類型」欄位，無法生成圖表。")
 
 # 主程式：頁面切換
 def main():
