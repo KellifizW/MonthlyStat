@@ -306,6 +306,11 @@ def style_staff_table(df):
 # 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
+    st.markdown("""
+    **self note:**  
+    步驟1>>>首先人手核對一次CaseNumber欄位有無錯誤加入了職員姓名。  
+    步驟2>>> 下載好檔案後, 用頂欄進行篩選, 在CaseName欄位剔走包含院友名的資料。複製篩好的資料到新活頁簿, 刪走原先的活頁簿。另存檔案後再上載到此頁面程式
+    """)
     st.write("請上傳 CSV 或 XLSX 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（CSV 使用 Big5HKSCS 編碼）。")
 
     # 檢查是否已經有上傳的數據
