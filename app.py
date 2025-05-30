@@ -226,28 +226,6 @@ def calculate_region_stats(df, github_df):
     total_participants = sum(region['participants'] for region in region_stats.values()) if has_participants_column else None
     return region_stats, total_sessions, total_participants
 
-# 計算 CaseNumber 統計（將 MT+數字 視為同一類）
-def calculate_case_number_stats(df):
-    if 'CaseNumber' not in df.columns:
-        return None
-    
-    # 定義函數將 CaseNumber 轉換為類別（MT+數字 視為 'MT'）
-    def categorize_case_number(case):
-        if pd.isna(case):
-            return '未知'
-        case = str(case)
-        if re.match(r'^MT\d+$', case):
-            return 'MT'
-        return case
-
-    # 應用分類並計算唯一值的計數
-    case_categories = df['CaseNumber'].apply(categorize_case_number)
-    case_counts = case_categories.value_counts().reset_index()
-    case_counts.columns = ['CaseNumber 類別', '次數']
-    case_counts.loc[len(case_counts)] = ['總計', case_counts['次數'].sum()]
-    case_counts.index = case_counts.index + 1  # 索引從 1 開始
-    return case_counts
-
 # 獲取員工的詳細記錄
 def get_staff_details(df, staff_name):
     solo_records = []
@@ -392,9 +370,6 @@ def outing_stats_page():
         if home_counts is None:
             return
 
-        # 計算 CaseNumber 統計
-        case_number_stats = calculate_case_number_stats(uploaded_df)
-
         # 並排顯示員工統計表和分區統計節數
         col1, col2 = st.columns([7, 3])
 
@@ -422,7 +397,7 @@ def outing_stats_page():
             region_df.index = region_df.index + 1  # 索引從 1 開始
             st.dataframe(region_df, height=300)
 
-        # 並排顯示 ServiceStatus、NumberOfSession、CaseNumber 和 活動類型 統計
+        # 並排顯示 ServiceStatus 和 活動類型 統計
         col1, col2 = st.columns(2)
 
         with col1:
@@ -443,13 +418,6 @@ def outing_stats_page():
                 st.write(f"總計: {session_counts.sum()} 次")
             else:
                 st.write("無此欄位")
-
-            # 新增 CaseNumber 統計
-            st.write("**CaseNumber 統計：**")
-            if case_number_stats is not None:
-                st.dataframe(case_number_stats, height=200)
-            else:
-                st.write("無 CaseNumber 欄位")
 
             # 院舍活動次數統計（互動表格）
             st.write("**院舍活動次數統計：**")
