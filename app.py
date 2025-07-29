@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from io import StringIO
 import re
-import graph  # 假設你已有 graph.py
+import graph  
 
 # 設置頁面為寬屏模式
 st.set_page_config(layout="wide")
@@ -18,7 +18,7 @@ REQUIRED_COLUMNS = ['RespStaff', '2ndRespStaffName', 'HomeName', 'ServiceDate']
 NAME_CONVERSION = {
     '溫?邦': 'Pong',
     '溫晧邦': 'Pong',
-    '譚惠凌': 'Ling',
+    '張玉明': 'Jordan',
     '陳發成': 'Jack',
     '林振聲': 'Mike',
     '黃瑞霞': 'Peppy',
