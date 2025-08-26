@@ -104,6 +104,10 @@ def check_local(row, github_df):
             local_staff.add(home_row['staff1'])
         if pd.notna(home_row['staff2']):
             local_staff.add(home_row['staff2'])
+        if pd.notna(home_row['staff3']):
+            local_staff.add(home_row['staff3'])
+        if pd.notna(home_row['staff4']):
+            local_staff.add(home_row['staff4'])
 
     resp_region = '本區' if resp_staff in local_staff else '外區'
     second_region = '本區' if second_staff in local_staff else '外區' if second_staff else None
@@ -348,7 +352,7 @@ def outing_stats_page():
             return
 
         required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
-        required_github_cols = ['Home', 'staff1', 'staff2']
+        required_github_cols = ['Home', 'staff1', 'staff2', 'staff3', 'staff4']
         missing_uploaded = [col for col in required_uploaded_cols if col not in uploaded_df.columns]
         missing_github = [col for col in required_github_cols if col not in github_df.columns]
 
@@ -381,7 +385,7 @@ def outing_stats_page():
         with col1:
             st.subheader("員工外出統計表")
             stats_df = pd.DataFrame(staff_stats).T
-            stats_df = stats_df[['本區單獨', '本區協作', '本區總共', '外區單獨', '外區協作', '全部總共', '外出日數']]
+            stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '本區總共', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
             desired_order = ['Ling', 'Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
             existing_staff = [staff for staff in desired_order if staff in stats_df.index]
