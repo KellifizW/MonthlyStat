@@ -182,7 +182,6 @@ def calculate_staff_stats(df, github_df):
 # 計算分區統計節數並返回詳細記錄（含人次和活動類型統計）
 def calculate_region_stats(df, github_df):
     region_stats = {
-        'Ling': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
         'Mike': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
         'Pong': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
         'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}}
@@ -295,10 +294,8 @@ def list_page():
 # 自定義樣式函數（為員工統計表設置顏色）
 def style_staff_table(df):
     def row_style(row):
-        if row.name == 'Ling' or row.name == 'Kayi':
+        if row.name == 'Mike' or row.name == 'Kayi':
             return ['background-color: #FFF5BA'] * len(row)  # 粉黃色
-        elif row.name == 'Mike':
-            return ['background-color: #FFE6E6'] * len(row)  # 更淺的粉紅色
         elif row.name == 'Pong' or row.name == 'Jack':
             return ['background-color: #CCFFCC'] * len(row)  # 粉綠色
         elif row.name == 'Peppy' or row.name == 'Kama':
@@ -387,7 +384,7 @@ def outing_stats_page():
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '本區總共', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
-            desired_order = ['Ling', 'Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
+            desired_order = ['Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
             existing_staff = [staff for staff in desired_order if staff in stats_df.index]
             stats_df = stats_df.reindex(existing_staff)
             styled_df = style_staff_table(stats_df)
