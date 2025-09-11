@@ -184,7 +184,8 @@ def calculate_region_stats(df, github_df):
     region_stats = {
         'Mike': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
         'Pong': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
-        'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}}
+        'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
+        'Jordan': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}}
     }
 
     has_participants_column = 'NumberOfParticipant(Without Volunteer Count)' in df.columns
@@ -300,6 +301,8 @@ def style_staff_table(df):
             return ['background-color: #CCFFCC'] * len(row)  # 粉綠色
         elif row.name == 'Peppy' or row.name == 'Kama':
             return ['background-color: #CCE5FF'] * len(row)  # 粉藍色
+        elif row.name == 'Jordan':
+            return ['background-color: #E6E6FA'] * len(row)  # 淡紫色
         return [''] * len(row)
     
     return df.style.apply(row_style, axis=1)
@@ -384,7 +387,7 @@ def outing_stats_page():
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '本區總共', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
-            desired_order = ['Mike', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
+            desired_order = ['Mike', 'Jordan', 'Pong', 'Peppy', 'Kayi', 'Jack', 'Kama']
             existing_staff = [staff for staff in desired_order if staff in stats_df.index]
             stats_df = stats_df.reindex(existing_staff)
             styled_df = style_staff_table(stats_df)
