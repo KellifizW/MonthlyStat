@@ -1,7 +1,6 @@
-streamlit==1.19.0
 pandas
-requests
-openpyxl
-altair==4.2.2
-numpy<2.0.0
+chardet
+python-magic
 plotly
+openpyxl
+requests
