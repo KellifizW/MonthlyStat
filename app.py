@@ -292,7 +292,7 @@ def style_staff_table(df):
         return [''] * len(row)
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁（改用 selectbox + expander 實現互動，避開 aggrid 所有問題）
+# 外出統計程式頁（使用原生 selectbox + expander 替代 aggrid）
 def outing_stats_page():
     st.title("外出統計程式")
     st.markdown("""
@@ -330,7 +330,7 @@ def outing_stats_page():
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
 
-        # 顯示 DataFrame 結構（debug 部分）
+        # debug 部分
         st.subheader("上傳檔案的 DataFrame 結構預覽")
         st.write("欄位列表（總共", len(uploaded_df.columns), "個欄位）：")
         st.write(list(uploaded_df.columns))
@@ -384,7 +384,6 @@ def outing_stats_page():
         if home_counts is None:
             return
 
-        # 並排顯示員工統計表和分區統計節數
         col1, col2 = st.columns([7, 3])
         with col1:
             st.subheader("員工外出統計表")
@@ -396,15 +395,16 @@ def outing_stats_page():
             styled_df = style_staff_table(stats_df)
             st.dataframe(styled_df, height=300)
 
-            # 互動：選擇員工查看詳細（取代 aggrid）
-            st.write("**選擇員工查看詳細活動記錄：**")
-            selected_staff = st.selectbox("員工", ['請選擇'] + existing_staff, index=0)
-            if selected_staff != '請選擇':
+            # 原生互動：下拉選擇員工查看詳細
+            st.write("**選擇員工查看詳細活動記錄**")
+            selected_staff = st.selectbox("員工", ['請選擇一位員工'] + list(existing_staff), index=0)
+            if selected_staff != '請選擇一位員工':
                 filtered = uploaded_df[uploaded_df['RespStaff'] == selected_staff]
                 if not filtered.empty:
                     display_cols = ['ServiceDate', 'RespStaff', 'HomeName', 'StartTime', 'EndTime', 'NumberOfSession', '活動類型']
                     filtered_display = filtered[display_cols].copy()
                     filtered_display['ServiceDate'] = filtered_display['ServiceDate'].dt.strftime('%Y-%m-%d')
+                    filtered_display = filtered_display.sort_values('ServiceDate')  # 按日期排序
                     with st.expander(f"員工 {selected_staff} 的所有活動記錄（共 {len(filtered)} 筆）", expanded=True):
                         st.dataframe(filtered_display, use_container_width=True, hide_index=True)
                 else:
@@ -423,7 +423,6 @@ def outing_stats_page():
             region_df.index = region_df.index + 1
             st.dataframe(region_df, height=300)
 
-        # 統計區塊
         col1, col2 = st.columns(2)
         with col1:
             st.write("**ServiceStatus 統計：**")
