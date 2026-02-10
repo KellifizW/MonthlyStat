@@ -4,3 +4,4 @@ python-magic
 plotly
 openpyxl
 requests
+streamlit-aggrid>=1.0.0
