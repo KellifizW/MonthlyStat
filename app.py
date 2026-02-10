@@ -271,13 +271,15 @@ def list_page():
         df.index = df.index + 1
         st.dataframe(df)
 
-# HTML 自訂表格（避開 arrow 問題）
+# HTML 自訂員工統計表格（避開 arrow 問題）
 def render_staff_table(stats_df):
     html = """
     <style>
     .staff-table {
         width: 100%;
         border-collapse: collapse;
+        font-family: sans-serif;
+        margin-bottom: 20px;
     }
     .staff-table th, .staff-table td {
         border: 1px solid #ddd;
@@ -286,6 +288,7 @@ def render_staff_table(stats_df):
     }
     .staff-table th {
         background-color: #f2f2f2;
+        font-weight: bold;
     }
     .mike-kayi { background-color: #FFF5BA !important; }
     .pong-jack { background-color: #CCFFCC !important; }
@@ -332,7 +335,54 @@ def render_staff_table(stats_df):
     html += "</tbody></table>"
     st.markdown(html, unsafe_allow_html=True)
 
-# 外出統計程式頁（使用 HTML 表格 + selectbox）
+# HTML 自訂詳細記錄表格
+def render_detail_table(df):
+    html = """
+    <style>
+    .detail-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-family: sans-serif;
+    }
+    .detail-table th, .detail-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    .detail-table th {
+        background-color: #f2f2f2;
+    }
+    </style>
+    <table class="detail-table">
+    <thead>
+        <tr>
+            <th>活動日期</th>
+            <th>負責員工</th>
+            <th>院舍名稱</th>
+            <th>開始時間</th>
+            <th>結束時間</th>
+            <th>節數</th>
+            <th>活動類型</th>
+        </tr>
+    </thead>
+    <tbody>
+    """
+    for _, row in df.iterrows():
+        html += f"""
+        <tr>
+            <td>{row['ServiceDate']}</td>
+            <td>{row['RespStaff']}</td>
+            <td>{row['HomeName']}</td>
+            <td>{row['StartTime']}</td>
+            <td>{row['EndTime']}</td>
+            <td>{row['NumberOfSession']}</td>
+            <td>{row['活動類型']}</td>
+        </tr>
+        """
+    html += "</tbody></table>"
+    st.markdown(html, unsafe_allow_html=True)
+
+# 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
     st.markdown("""
@@ -370,14 +420,14 @@ def outing_stats_page():
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
 
-        # debug
+        # debug 部分
         st.subheader("上傳檔案的 DataFrame 結構預覽")
         st.write("欄位列表（總共", len(uploaded_df.columns), "個欄位）：")
         st.write(list(uploaded_df.columns))
-        st.write("前 5 筆資料預覽：")
-        st.dataframe(uploaded_df.head(5))
+        st.write("前 5 筆資料預覽（純文字）：")
+        st.write(uploaded_df.head(5).to_string())
         st.write("各欄位資料類型：")
-        st.write(uploaded_df.dtypes)
+        st.write(str(uploaded_df.dtypes))
 
         duplicate_records = check_duplicate_staff(uploaded_df)
         if not duplicate_records.empty:
@@ -392,7 +442,8 @@ def outing_stats_page():
                 '2ndRespStaffName': '第二負責員工'
             }, inplace=True)
             display_df.index = range(1, len(display_df) + 1)
-            st.dataframe(display_df, use_container_width=True)
+            st.write("重複記錄（純文字）：")
+            st.write(display_df.to_string())
 
         github_df = get_github_csv_data(RAW_URL)
         if github_df is None:
@@ -432,10 +483,10 @@ def outing_stats_page():
             stats_df.index.name = '員工'
             existing_staff = [s for s in DESIRED_STAFF_ORDER if s in stats_df.index]
             stats_df = stats_df.reindex(existing_staff)
-            # 用 HTML 自訂表格顯示
+            # 用 HTML 顯示員工統計表
             render_staff_table(stats_df)
 
-            # 互動：選擇員工查看詳細
+            # 互動選擇員工
             st.write("**選擇員工查看詳細活動記錄**")
             selected_staff = st.selectbox("員工", ['請選擇一位員工'] + list(existing_staff), index=0)
             if selected_staff != '請選擇一位員工':
@@ -446,7 +497,7 @@ def outing_stats_page():
                     filtered_display['ServiceDate'] = filtered_display['ServiceDate'].dt.strftime('%Y-%m-%d')
                     filtered_display = filtered_display.sort_values('ServiceDate')
                     with st.expander(f"員工 {selected_staff} 的所有活動記錄（共 {len(filtered)} 筆）", expanded=True):
-                        st.dataframe(filtered_display, use_container_width=True, hide_index=True)
+                        render_detail_table(filtered_display)
                 else:
                     st.info(f"員工 {selected_staff} 無相關記錄。")
 
@@ -461,9 +512,9 @@ def outing_stats_page():
             region_df = pd.DataFrame(region_data)
             region_df.loc[len(region_df)] = ['總計', total_sessions] + ([total_participants] if '人次' in region_df.columns else [])
             region_df.index = region_df.index + 1
-            st.dataframe(region_df, height=300)
+            st.write("分區統計（純文字）：")
+            st.write(region_df.to_string())
 
-        # 統計區塊
         col1, col2 = st.columns(2)
         with col1:
             st.write("**ServiceStatus 統計：**")
@@ -497,7 +548,8 @@ def outing_stats_page():
                 })
                 session_df = pd.DataFrame(session_data)
                 session_df.index = session_df.index + 1
-                st.dataframe(session_df, height=250)
+                st.write("NumberOfSession 統計（純文字）：")
+                st.write(session_df.to_string())
             else:
                 st.write("無此欄位")
 
@@ -509,7 +561,8 @@ def outing_stats_page():
             home_activity_df = pd.DataFrame(home_activity_data)
             home_activity_df.loc[len(home_activity_df)] = ['總計', home_activity_df['院舍數目'].sum(), home_activity_df['總節數'].sum()]
             home_activity_df.index = home_activity_df.index + 1
-            st.dataframe(home_activity_df, height=200)
+            st.write("院舍活動次數統計（純文字）：")
+            st.write(home_activity_df.to_string())
 
         with col2:
             st.write("**活動類型 統計：**")
@@ -518,7 +571,8 @@ def outing_stats_page():
                 type_counts.columns = ['活動類型', '次數']
                 type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
                 type_counts.index = type_counts.index + 1
-                st.dataframe(type_counts, height=200)
+                st.write("活動類型統計（純文字）：")
+                st.write(type_counts.to_string())
             else:
                 st.write("無此欄位")
 
@@ -531,14 +585,14 @@ def outing_stats_page():
             st.write(f"### {selected_region} 分區（{region_stats[selected_region]['count']} 節{participants_text}）")
             homes = sorted(region_stats[selected_region]['homes'])
             st.write(f"相關院舍（staff1 = {selected_region}）：{', '.join(homes)}")
-            st.write("記錄清單：")
+            st.write("記錄清單（純文字）：")
             if region_stats[selected_region]['records']:
                 records_df = pd.DataFrame(region_stats[selected_region]['records'])
                 records_df['ServiceDate'] = records_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 records_df = records_df[['RespStaff', 'ServiceDate', 'HomeName']]
                 records_df.columns = ['負責員工', '活動日期', '院舍名稱']
-                records_df.index = records_df.index + 1
-                st.dataframe(records_df, height=300)
+                records_df.index = range(1, len(records_df) + 1)
+                st.write(records_df.to_string())
             else:
                 st.write("無記錄")
 
@@ -554,8 +608,9 @@ def outing_stats_page():
                 solo_df = pd.DataFrame(details['solo_records'])
                 solo_df['ServiceDate'] = solo_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 solo_df.columns = ['活動日期', '院舍名稱']
-                solo_df.index = solo_df.index + 1
-                st.dataframe(solo_df, height=200)
+                solo_df.index = range(1, len(solo_df) + 1)
+                st.write("單獨記錄（純文字）：")
+                st.write(solo_df.to_string())
             else:
                 st.write("無單獨記錄")
             st.write("**協作記錄：**")
@@ -563,8 +618,9 @@ def outing_stats_page():
                 collab_df = pd.DataFrame(details['collab_records'])
                 collab_df['ServiceDate'] = collab_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
                 collab_df.columns = ['活動日期', '院舍名稱', '協作者']
-                collab_df.index = collab_df.index + 1
-                st.dataframe(collab_df, height=200)
+                collab_df.index = range(1, len(collab_df) + 1)
+                st.write("協作記錄（純文字）：")
+                st.write(collab_df.to_string())
             else:
                 st.write("無協作記錄")
             st.write("**不重複日期：**")
@@ -583,14 +639,10 @@ def outing_stats_page():
             count = int(selected_activity_count.split()[0])
             filtered_homes = {home: dates for home, dates in home_details.items() if len(dates) == count}
             if filtered_homes:
-                home_activity_data = [
-                    {'院舍名稱': home, '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in dates)}
-                    for home, dates in filtered_homes.items()
-                ]
-                home_activity_df = pd.DataFrame(home_activity_data)
-                home_activity_df.index = home_activity_df.index + 1
                 st.write(f"### 活動次數為 {count} 次的院舍（共 {len(filtered_homes)} 間）")
-                st.dataframe(home_activity_df, height=300)
+                for home, dates in filtered_homes.items():
+                    date_str = ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in dates)
+                    st.write(f"- {home}: {date_str}")
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
@@ -602,18 +654,10 @@ def outing_stats_page():
             st.write(f"### {selected_activity_region} 分區活動類型統計")
             activity_types = region_stats[selected_activity_region]['activity_types']
             if activity_types:
-                activity_type_data = [
-                    {
-                        '活動類型': activity,
-                        '節數': details['count'],
-                        '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in details['dates'])
-                    }
-                    for activity, details in activity_types.items()
-                ]
-                activity_type_df = pd.DataFrame(activity_type_data)
-                activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum(), '']
-                activity_type_df.index = activity_type_df.index + 1
-                st.dataframe(activity_type_df, height=300)
+                for activity, details in activity_types.items():
+                    date_str = ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in details['dates'])
+                    st.write(f"- {activity}: {details['count']} 節 ({date_str})")
+                st.write(f"總計節數: {sum(d['count'] for d in activity_types.values())}")
             else:
                 st.write("此分區無活動類型記錄")
 
