@@ -5,3 +5,4 @@ plotly
 openpyxl
 requests
 streamlit-aggrid>=1.0.0
+altair>=5.0.0
