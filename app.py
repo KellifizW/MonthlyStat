@@ -132,24 +132,29 @@ def calculate_staff_stats(df, github_df):
         service_date = row['ServiceDate']
         if pd.isna(resp_staff) or pd.isna(service_date):
             continue
+
         if resp_staff not in staff_stats:
             staff_stats[resp_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0,
                 'session_0': 0, 'session_1': 0, 'session_total': 0
             }
             staff_days[resp_staff] = set()
+
         if second_staff and second_staff not in staff_stats:
             staff_stats[second_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0,
                 'session_0': 0, 'session_1': 0, 'session_total': 0
             }
             staff_days[second_staff] = set()
+
         staff_days[resp_staff].add(service_date)
         if second_staff:
             staff_days[second_staff].add(service_date)
+
         regions = check_local(row, github_df)
         resp_region = regions['resp_region']
         second_region = regions['second_region']
+
         if not second_staff:
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
@@ -164,24 +169,24 @@ def calculate_staff_stats(df, github_df):
                 staff_stats[second_staff]['本區協作'] += 1
             else:
                 staff_stats[second_staff]['外區協作'] += 1
-        # 統計 NumberOfSession（員工參與的節數）
+
+        # 只統計 RespStaff 的 NumberOfSession
         if 'NumberOfSession' in df.columns and pd.notna(row['NumberOfSession']):
             try:
                 session_val = int(row['NumberOfSession'])
                 if session_val in [0, 1]:
                     staff_stats[resp_staff][f'session_{session_val}'] += 1
                     staff_stats[resp_staff]['session_total'] += 1
-                    if second_staff:
-                        staff_stats[second_staff][f'session_{session_val}'] += 1
-                        staff_stats[second_staff]['session_total'] += 1
             except ValueError:
                 pass
+
     for staff in staff_stats:
         staff_stats[staff]['外出日數'] = len(staff_days[staff])
         staff_stats[staff]['本區總共'] = staff_stats[staff]['本區單獨'] + staff_stats[staff]['本區協作']
         staff_stats[staff]['全部總共'] = (staff_stats[staff]['本區總共'] +
                                          staff_stats[staff]['外區單獨'] +
                                          staff_stats[staff]['外區協作'])
+
     return staff_stats, staff_days
 
 # 計算分區統計節數並返回詳細記錄（含人次和活動類型統計）
@@ -292,7 +297,7 @@ def style_staff_table(df):
         return [''] * len(row)
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁（已改為按員工顯示 NumberOfSession）
+# 外出統計程式頁
 def outing_stats_page():
     st.title("外出統計程式")
     st.markdown("""
@@ -411,7 +416,6 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-            # NumberOfSession 統計（按員工）
             st.write("**NumberOfSession 統計（按員工）：**")
             if 'NumberOfSession' in uploaded_df.columns:
                 session_data = []
@@ -458,7 +462,6 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-        # 分區詳細統計
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
@@ -478,7 +481,6 @@ def outing_stats_page():
             else:
                 st.write("無記錄")
 
-        # 員工詳細統計
         st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
@@ -511,7 +513,6 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
-        # 院舍活動次數詳細統計
         st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
         selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
@@ -530,7 +531,6 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
-        # 活動類型詳細統計
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
