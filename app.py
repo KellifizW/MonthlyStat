@@ -337,6 +337,15 @@ def outing_stats_page():
         uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
+        st.subheader("上傳檔案的 DataFrame 結構預覽")
+        st.write("欄位列表（總共", len(uploaded_df.columns), "個欄位）：")
+        st.write(list(uploaded_df.columns))
+        
+        st.write("前 5 筆資料預覽：")
+        st.dataframe(uploaded_df.head(5))
+        
+        st.write("各欄位資料類型：")
+        st.write(uploaded_df.dtypes)
 
         duplicate_records = check_duplicate_staff(uploaded_df)
         if not duplicate_records.empty:
