@@ -294,7 +294,7 @@ def style_staff_table(df):
         return [''] * len(row)
     return df.style.apply(row_style, axis=1)
 
-# 外出統計程式頁（已加入 aggrid + 行選擇互動）
+# 外出統計程式頁（修正 aggrid 錯誤處理）
 def outing_stats_page():
     st.title("外出統計程式")
     st.markdown("""
@@ -423,21 +423,25 @@ def outing_stats_page():
                 theme='streamlit'
             )
 
-            # 當選擇一行時，顯示詳細資料
+            # 修正：安全判斷 selected_rows 是否有值
             selected_rows = grid_response.get("selected_rows", [])
-            if selected_rows:
-                selected_staff = selected_rows[0]['index']  # 員工名稱
-                filtered = uploaded_df[uploaded_df['RespStaff'] == selected_staff]
-                if not filtered.empty:
-                    # 選取要顯示的欄位（可自行增減）
-                    display_cols = ['ServiceDate', 'RespStaff', 'HomeName', 'StartTime', 'EndTime', 'NumberOfSession', '活動類型']
-                    filtered_display = filtered[display_cols].copy()
-                    filtered_display['ServiceDate'] = filtered_display['ServiceDate'].dt.strftime('%Y-%m-%d')
+            if len(selected_rows) > 0:
+                try:
+                    selected_staff = selected_rows[0].get('index', None)  # 員工名稱
+                    if selected_staff:
+                        filtered = uploaded_df[uploaded_df['RespStaff'] == selected_staff]
+                        if not filtered.empty:
+                            # 選取要顯示的欄位
+                            display_cols = ['ServiceDate', 'RespStaff', 'HomeName', 'StartTime', 'EndTime', 'NumberOfSession', '活動類型']
+                            filtered_display = filtered[display_cols].copy()
+                            filtered_display['ServiceDate'] = filtered_display['ServiceDate'].dt.strftime('%Y-%m-%d')
 
-                    with st.expander(f"員工 {selected_staff} 的所有活動記錄（共 {len(filtered)} 筆）", expanded=True):
-                        st.dataframe(filtered_display, use_container_width=True, hide_index=True)
-                else:
-                    st.info(f"員工 {selected_staff} 無相關記錄。")
+                            with st.expander(f"員工 {selected_staff} 的所有活動記錄（共 {len(filtered)} 筆）", expanded=True):
+                                st.dataframe(filtered_display, use_container_width=True, hide_index=True)
+                        else:
+                            st.info(f"員工 {selected_staff} 無相關記錄。")
+                except Exception as e:
+                    st.warning(f"選擇處理錯誤: {str(e)}")
 
         with col2:
             st.subheader("分區統計節數")
