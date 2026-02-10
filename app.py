@@ -332,7 +332,7 @@ def outing_stats_page():
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
 
-        # 顯示 DataFrame 結構（你已加的 debug 部分）
+        # 顯示 DataFrame 結構（debug 部分）
         st.subheader("上傳檔案的 DataFrame 結構預覽")
         st.write("欄位列表（總共", len(uploaded_df.columns), "個欄位）：")
         st.write(list(uploaded_df.columns))
@@ -452,7 +452,7 @@ def outing_stats_page():
             region_df.index = region_df.index + 1
             st.dataframe(region_df, height=300)
 
-        # 統計區塊（維持原樣）
+        # 統計區塊
         col1, col2 = st.columns(2)
         with col1:
             st.write("**ServiceStatus 統計：**")
@@ -511,7 +511,7 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-        # 分區詳細統計（維持原樣）
+        # 分區詳細統計
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
@@ -531,7 +531,7 @@ def outing_stats_page():
             else:
                 st.write("無記錄")
 
-        # 員工詳細統計（維持原樣）
+        # 員工詳細統計
         st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
@@ -564,7 +564,7 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
-        # 院舍活動次數詳細統計（維持原樣）
+        # 院舍活動次數詳細統計
         st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
         selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
@@ -583,7 +583,7 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
-        # 活動類型詳細統計（維持原樣）
+        # 活動類型詳細統計
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
@@ -606,7 +606,7 @@ def outing_stats_page():
             else:
                 st.write("此分區無活動類型記錄")
 
-# 統計圖頁面（維持原樣）
+# 統計圖頁面
 def stats_chart_page():
     st.title("統計圖")
     st.write("此頁面顯示活動類型的統計圖表，並允許調整圖表大小和字體大小。")
