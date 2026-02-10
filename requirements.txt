@@ -4,6 +4,7 @@ python-magic
 plotly
 openpyxl
 requests
+pyarrow<15.0.0
 streamlit-aggrid>=1.0.0
 altair==4.2.2
 plotly>=5.0.0
