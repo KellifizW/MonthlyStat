@@ -463,19 +463,22 @@ def outing_stats_page():
             participants_df.index = participants_df.index + 1
             st.dataframe(participants_df, height=300, use_container_width=True)
 
-            # ServiceStatus 統計 - 全部擠在單一行
-            st.markdown("### ServiceStatus 統計")
+            # ServiceStatus 統計 - 全部擠在同一行，標題與內容合併
             if 'ServiceStatus' in uploaded_df.columns:
                 status_counts = uploaded_df['ServiceStatus'].value_counts()
                 total = status_counts.sum()
-                parts = []
-                for status, count in status_counts.items():
-                    parts.append(f"{status}: {count} 次")
+                
+                # 動態產生所有狀態的文字
+                status_parts = [f"{status}: {count} 次" for status, count in status_counts.items()]
+                status_text = "　".join(status_parts) if status_parts else "無狀態記錄"
+                
                 # 總結固定放最後
-                parts.append(f"總計: {total} 次")
-                st.write(" - ".join(parts))  # 用 - 分隔，全部一行
+                full_text = f"**ServiceStatus 統計** - {status_text}　總計: {total} 次"
+                
+                # 用 st.markdown 渲染成單一行（粗體標題 + 內容）
+                st.markdown(full_text)
             else:
-                st.write("無 ServiceStatus 欄位")
+                st.markdown("**ServiceStatus 統計** - 無 ServiceStatus 欄位")
         else:
             st.info("檔案中無「NumberOfParticipant(Without Volunteer Count)」欄位，無法顯示服務人次統計")
 
