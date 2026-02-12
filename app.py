@@ -413,7 +413,7 @@ def outing_stats_page():
         if home_counts is None:
             return
 
-        # 並排顯示員工統計表和分區統計節數
+        # 員工統計表 和 分區節數統計（並排）
         col1, col2 = st.columns([7, 3])
         with col1:
             st.subheader("員工外出統計表")
@@ -436,14 +436,16 @@ def outing_stats_page():
             if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns:
                 region_data['總人次'] = [region_stats[region]['participants'] for region in region_stats]
             region_df = pd.DataFrame(region_data)
-            total_row = ['總計', sum(region_data['總節數']), sum(region_data['0 次']), sum(region_data['1 次'])]
+            total_row = ['總計', sum(region_data.get('總節數', [0])), 
+                         sum(region_data.get('0 次', [0])), 
+                         sum(region_data.get('1 次', [0]))]
             if '總人次' in region_data:
                 total_row.append(sum(region_data['總人次']))
             region_df.loc[len(region_df)] = total_row
             region_df.index = region_df.index + 1
             st.dataframe(region_df, height=300)
 
-        # 新增獨立的「服務人次統計」表格
+        # 服務人次統計（放在統計區塊上方）
         if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns:
             st.subheader("服務人次統計（按 NumberOfSession 分開）")
             participants_data = {
@@ -459,21 +461,27 @@ def outing_stats_page():
                                                         sum(participants_data['1 次人次'])]
             participants_df.index = participants_df.index + 1
             st.dataframe(participants_df, height=300, use_container_width=True)
+
+            # ServiceStatus 統計 - 改成單行顯示，放在服務人次統計上方
+            st.markdown("### ServiceStatus 統計")
+            if 'ServiceStatus' in uploaded_df.columns:
+                status_counts = uploaded_df['ServiceStatus'].value_counts()
+                status_lines = []
+                for status, count in status_counts.items():
+                    status_lines.append(f"{status}: {count} 次")
+                if status_lines:
+                    st.write("　".join(status_lines))
+                total_status = status_counts.sum()
+                st.write(f"完成: {total_status} 次　總計: {total_status} 次")
+            else:
+                st.write("無 ServiceStatus 欄位")
+
         else:
             st.info("檔案中無「NumberOfParticipant(Without Volunteer Count)」欄位，無法顯示服務人次統計")
 
-        # 統計區塊
+        # 其他統計區塊（NumberOfSession、院舍活動次數、活動類型）
         col1, col2 = st.columns(2)
         with col1:
-            st.write("**ServiceStatus 統計：**")
-            if 'ServiceStatus' in uploaded_df.columns:
-                status_counts = uploaded_df['ServiceStatus'].value_counts()
-                for status, count in status_counts.items():
-                    st.write(f"{status}: {count} 次")
-                st.write(f"總計: {status_counts.sum()} 次")
-            else:
-                st.write("無此欄位")
-
             st.write("**NumberOfSession 統計（按員工）：**")
             if 'NumberOfSession' in uploaded_df.columns:
                 session_data = []
@@ -513,7 +521,6 @@ def outing_stats_page():
         with col2:
             st.write("**活動類型 統計（按 NumberOfSession 分開）：**")
             if '活動類型' in uploaded_df.columns:
-                # 0 次 的活動類型統計
                 st.write("**NumberOfSession = 0 次**")
                 type_counts_0 = {}
                 for region in region_stats.values():
@@ -529,7 +536,6 @@ def outing_stats_page():
                 else:
                     st.write("無 0 次 的活動類型記錄")
 
-                # 1 次 的活動類型統計
                 st.write("**NumberOfSession = 1 次**")
                 type_counts_1 = {}
                 for region in region_stats.values():
@@ -547,7 +553,7 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-        # 分區詳細統計
+        # 分區詳細統計、員工詳細、院舍活動次數詳細、活動類型詳細（保持原樣）
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
@@ -567,7 +573,6 @@ def outing_stats_page():
             else:
                 st.write("無記錄")
 
-        # 員工詳細統計
         st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
@@ -600,7 +605,6 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
-        # 院舍活動次數詳細統計
         st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
         selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
@@ -619,7 +623,6 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
-        # 活動類型詳細統計（分區別）
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
