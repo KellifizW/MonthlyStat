@@ -135,29 +135,24 @@ def calculate_staff_stats(df, github_df):
         service_date = row['ServiceDate']
         if pd.isna(resp_staff) or pd.isna(service_date):
             continue
-
         if resp_staff not in staff_stats:
             staff_stats[resp_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0,
                 'session_0': 0, 'session_1': 0, 'session_total': 0
             }
             staff_days[resp_staff] = set()
-
         if second_staff and second_staff not in staff_stats:
             staff_stats[second_staff] = {
                 '本區單獨': 0, '本區協作': 0, '外區單獨': 0, '外區協作': 0,
                 'session_0': 0, 'session_1': 0, 'session_total': 0
             }
             staff_days[second_staff] = set()
-
         staff_days[resp_staff].add(service_date)
         if second_staff:
             staff_days[second_staff].add(service_date)
-
         regions = check_local(row, github_df)
         resp_region = regions['resp_region']
         second_region = regions['second_region']
-
         if not second_staff:
             if resp_region == '本區':
                 staff_stats[resp_staff]['本區單獨'] += 1
@@ -172,7 +167,6 @@ def calculate_staff_stats(df, github_df):
                 staff_stats[second_staff]['本區協作'] += 1
             else:
                 staff_stats[second_staff]['外區協作'] += 1
-
         # 只統計 RespStaff 的 NumberOfSession
         if 'NumberOfSession' in df.columns and pd.notna(row['NumberOfSession']):
             try:
@@ -182,23 +176,29 @@ def calculate_staff_stats(df, github_df):
                     staff_stats[resp_staff]['session_total'] += 1
             except ValueError:
                 pass
-
     for staff in staff_stats:
         staff_stats[staff]['外出日數'] = len(staff_days[staff])
         staff_stats[staff]['本區總共'] = staff_stats[staff]['本區單獨'] + staff_stats[staff]['本區協作']
         staff_stats[staff]['全部總共'] = (staff_stats[staff]['本區總共'] +
                                          staff_stats[staff]['外區單獨'] +
                                          staff_stats[staff]['外區協作'])
-
     return staff_stats, staff_days
 
-# 計算分區統計節數並返回詳細記錄（含人次和活動類型統計）
+# 計算分區統計節數並返回詳細記錄（含人次、活動類型，並按 session 0/1 分開）
 def calculate_region_stats(df, github_df):
     region_stats = {
-        'Mike': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
-        'Pong': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
-        'Peppy': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}},
-        'Jordan': {'count': 0, 'homes': set(), 'records': [], 'participants': 0, 'activity_types': {}}
+        'Mike':  {'count': 0, 'count_0':0, 'count_1':0,
+                  'homes': set(), 'records': [], 'participants': 0,
+                  'activity_types_0': {}, 'activity_types_1': {}},
+        'Pong':  {'count': 0, 'count_0':0, 'count_1':0,
+                  'homes': set(), 'records': [], 'participants': 0,
+                  'activity_types_0': {}, 'activity_types_1': {}},
+        'Peppy': {'count': 0, 'count_0':0, 'count_1':0,
+                  'homes': set(), 'records': [], 'participants': 0,
+                  'activity_types_0': {}, 'activity_types_1': {}},
+        'Jordan':{'count': 0, 'count_0':0, 'count_1':0,
+                  'homes': set(), 'records': [], 'participants': 0,
+                  'activity_types_0': {}, 'activity_types_1': {}},
     }
     has_participants_column = 'NumberOfParticipant(Without Volunteer Count)' in df.columns
     has_activity_type_column = '活動類型' in df.columns
@@ -220,17 +220,29 @@ def calculate_region_stats(df, github_df):
             'HomeName': row['HomeName']
         }
         region_stats[staff1]['records'].append(record)
+        session_val = None
+        if 'NumberOfSession' in df.columns and pd.notna(row['NumberOfSession']):
+            try:
+                session_val = int(row['NumberOfSession'])
+            except ValueError:
+                session_val = None
+        if session_val == 0:
+            region_stats[staff1]['count_0'] += 1
+        elif session_val == 1:
+            region_stats[staff1]['count_1'] += 1
         if has_participants_column and pd.notna(row['NumberOfParticipant(Without Volunteer Count)']):
             try:
                 participants = int(row['NumberOfParticipant(Without Volunteer Count)'])
                 region_stats[staff1]['participants'] += participants
             except ValueError:
-                continue
-        if has_activity_type_column and pd.notna(row['活動類型']):
+                pass
+        if has_activity_type_column and pd.notna(row['活動類型']) and session_val in [0, 1]:
             activity_type = row['活動類型']
-            region_stats[staff1]['activity_types'][activity_type] = region_stats[staff1]['activity_types'].get(activity_type, {'count': 0, 'dates': []})
-            region_stats[staff1]['activity_types'][activity_type]['count'] += 1
-            region_stats[staff1]['activity_types'][activity_type]['dates'].append(row['ServiceDate'])
+            target_dict = region_stats[staff1]['activity_types_0' if session_val == 0 else 'activity_types_1']
+            if activity_type not in target_dict:
+                target_dict[activity_type] = {'count': 0, 'dates': []}
+            target_dict[activity_type]['count'] += 1
+            target_dict[activity_type]['dates'].append(row['ServiceDate'])
     total_sessions = sum(region['count'] for region in region_stats.values())
     total_participants = sum(region['participants'] for region in region_stats.values()) if has_participants_column else None
     return region_stats, total_sessions, total_participants
@@ -309,7 +321,6 @@ def outing_stats_page():
     步驟2>>> 下載好檔案後, 用頂欄進行篩選, 在CaseName欄位剔走包含院友名的資料。複製篩好的資料到新活頁簿, 刪走原先的活頁簿。另存檔案後再上載到此頁面程式
     """)
     st.write("請上傳 CSV 或 XLSX 檔案，程式將根據 GitHub 的 homelist.csv 計算每位員工的本區與外區單獨及協作節數，並顯示分區統計節數（CSV 使用 Big5HKSCS 編碼）。")
-
     if st.session_state['uploaded_df'] is None:
         uploaded_file = st.file_uploader("選擇 CSV 或 XLSX 檔案", type=["csv", "xlsx"], key="outing_uploader")
         if uploaded_file is not None:
@@ -329,15 +340,12 @@ def outing_stats_page():
                 return
             st.session_state['uploaded_df'] = uploaded_df
             st.session_state['used_encoding'] = used_encoding
-
     uploaded_df = st.session_state['uploaded_df']
     used_encoding = st.session_state['used_encoding']
-
     if uploaded_df is not None:
         uploaded_df['RespStaff'] = uploaded_df['RespStaff'].apply(convert_name)
         uploaded_df['2ndRespStaffName'] = uploaded_df['2ndRespStaffName'].apply(convert_name)
         st.write(f"檔案成功解析，使用編碼: {used_encoding}")
-
         duplicate_records = check_duplicate_staff(uploaded_df)
         if not duplicate_records.empty:
             st.error(f"⚠️ 偵測到 {len(duplicate_records)} 筆記錄的「負責員工」與「第二負責員工」為同一人，請檢查並修正！")
@@ -352,11 +360,9 @@ def outing_stats_page():
             }, inplace=True)
             display_df.index = range(1, len(display_df) + 1)
             st.dataframe(display_df, use_container_width=True)
-
         github_df = get_github_csv_data(RAW_URL)
         if github_df is None:
             return
-
         required_uploaded_cols = ['HomeName', 'RespStaff', '2ndRespStaffName', 'ServiceDate']
         required_github_cols = ['Home', 'staff1', 'staff2', 'staff3', 'staff4']
         missing_uploaded = [col for col in required_uploaded_cols if col not in uploaded_df.columns]
@@ -367,22 +373,17 @@ def outing_stats_page():
         if missing_github:
             st.error(f"GitHub 的 homelist.csv 缺少必要欄位: {missing_github}")
             return
-
         uploaded_df[['RespRegion', 'SecondRegion']] = uploaded_df.apply(
             lambda row: pd.Series(check_local(row, github_df)), axis=1
         )
-
         staff_stats, staff_days = calculate_staff_stats(uploaded_df, github_df)
         if staff_stats is None:
             st.error("統計計算失敗，請檢查錯誤訊息")
             return
-
         region_stats, total_sessions, total_participants = calculate_region_stats(uploaded_df, github_df)
-
         home_counts, home_details = calculate_home_activity_stats(uploaded_df)
         if home_counts is None:
             return
-
         # 並排顯示員工統計表和分區統計節數
         col1, col2 = st.columns([7, 3])
         with col1:
@@ -390,26 +391,30 @@ def outing_stats_page():
             stats_df = pd.DataFrame(staff_stats).T
             stats_df = stats_df[['本區單獨', '本區協作', '外區單獨', '外區協作', '本區總共', '全部總共', '外出日數']]
             stats_df.index.name = '員工'
-
             # 強制按照指定順序排列，只顯示存在的員工
             existing_staff = [s for s in DESIRED_STAFF_ORDER if s in stats_df.index]
             stats_df = stats_df.reindex(existing_staff)
             styled_df = style_staff_table(stats_df)
             st.dataframe(styled_df, height=300)
-
         with col2:
             st.subheader("分區統計節數")
             region_data = {
                 '分區': list(region_stats.keys()),
-                '節數': [region_stats[region]['count'] for region in region_stats]
+                '總節數': [region_stats[region]['count'] for region in region_stats],
+                '0 次': [region_stats[region]['count_0'] for region in region_stats],
+                '1 次': [region_stats[region]['count_1'] for region in region_stats],
             }
             if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns:
                 region_data['人次'] = [region_stats[region]['participants'] for region in region_stats]
             region_df = pd.DataFrame(region_data)
-            region_df.loc[len(region_df)] = ['總計', total_sessions] + ([total_participants] if '人次' in region_df.columns else [])
+            total_row = ['總計', sum(region_data['總節數'])]
+            total_row.append(sum(region_data['0 次']))
+            total_row.append(sum(region_data['1 次']))
+            if '人次' in region_data:
+                total_row.append(sum(region_data['人次']))
+            region_df.loc[len(region_df)] = total_row
             region_df.index = region_df.index + 1
             st.dataframe(region_df, height=300)
-
         # 統計區塊
         col1, col2 = st.columns(2)
         with col1:
@@ -421,11 +426,9 @@ def outing_stats_page():
                 st.write(f"總計: {status_counts.sum()} 次")
             else:
                 st.write("無此欄位")
-
             st.write("**NumberOfSession 統計（按員工）：**")
             if 'NumberOfSession' in uploaded_df.columns:
                 session_data = []
-                # 使用相同的順序
                 for staff in DESIRED_STAFF_ORDER:
                     if staff in staff_stats:
                         session_data.append({
@@ -434,7 +437,6 @@ def outing_stats_page():
                             '1 次': staff_stats[staff].get('session_1', 0),
                             '總計': staff_stats[staff].get('session_total', 0)
                         })
-                # 總計行
                 total_0 = sum(staff_stats[staff].get('session_0', 0) for staff in staff_stats)
                 total_1 = sum(staff_stats[staff].get('session_1', 0) for staff in staff_stats)
                 grand_total = total_0 + total_1
@@ -449,7 +451,6 @@ def outing_stats_page():
                 st.dataframe(session_df, height=250)
             else:
                 st.write("無此欄位")
-
             st.write("**院舍活動次數統計：**")
             home_activity_data = [
                 {'活動次數': count, '院舍數目': num_homes, '總節數': count * num_homes}
@@ -459,18 +460,42 @@ def outing_stats_page():
             home_activity_df.loc[len(home_activity_df)] = ['總計', home_activity_df['院舍數目'].sum(), home_activity_df['總節數'].sum()]
             home_activity_df.index = home_activity_df.index + 1
             st.dataframe(home_activity_df, height=200)
-
         with col2:
-            st.write("**活動類型 統計：**")
+            st.write("**活動類型 統計（按 NumberOfSession 分開）：**")
             if '活動類型' in uploaded_df.columns:
-                type_counts = uploaded_df['活動類型'].value_counts().reset_index()
-                type_counts.columns = ['活動類型', '次數']
-                type_counts.loc[len(type_counts)] = ['總計', type_counts['次數'].sum()]
-                type_counts.index = type_counts.index + 1
-                st.dataframe(type_counts, height=200)
+                # 0 次 的活動類型統計
+                st.write("**NumberOfSession = 0 次**")
+                type_counts_0 = {}
+                for region in region_stats.values():
+                    for act, info in region['activity_types_0'].items():
+                        type_counts_0[act] = type_counts_0.get(act, 0) + info['count']
+                if type_counts_0:
+                    df0 = pd.DataFrame.from_dict(type_counts_0, orient='index', columns=['次數']).reset_index()
+                    df0.columns = ['活動類型', '次數']
+                    df0 = df0.sort_values('次數', ascending=False)
+                    df0.loc[len(df0)] = ['總計', df0['次數'].sum()]
+                    df0.index = df0.index + 1
+                    st.dataframe(df0, height=180)
+                else:
+                    st.write("無 0 次 的活動類型記錄")
+
+                # 1 次 的活動類型統計
+                st.write("**NumberOfSession = 1 次**")
+                type_counts_1 = {}
+                for region in region_stats.values():
+                    for act, info in region['activity_types_1'].items():
+                        type_counts_1[act] = type_counts_1.get(act, 0) + info['count']
+                if type_counts_1:
+                    df1 = pd.DataFrame.from_dict(type_counts_1, orient='index', columns=['次數']).reset_index()
+                    df1.columns = ['活動類型', '次數']
+                    df1 = df1.sort_values('次數', ascending=False)
+                    df1.loc[len(df1)] = ['總計', df1['次數'].sum()]
+                    df1.index = df1.index + 1
+                    st.dataframe(df1, height=180)
+                else:
+                    st.write("無 1 次 的活動類型記錄")
             else:
                 st.write("無此欄位")
-
         # 分區詳細統計
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
@@ -483,14 +508,13 @@ def outing_stats_page():
             st.write("記錄清單：")
             if region_stats[selected_region]['records']:
                 records_df = pd.DataFrame(region_stats[selected_region]['records'])
-                records_df['ServiceDate'] = records_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
+                records_df['ServiceDate'] = records_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notna(x) else '')
                 records_df = records_df[['RespStaff', 'ServiceDate', 'HomeName']]
                 records_df.columns = ['負責員工', '活動日期', '院舍名稱']
                 records_df.index = records_df.index + 1
                 st.dataframe(records_df, height=300)
             else:
                 st.write("無記錄")
-
         # 員工詳細統計
         st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
@@ -501,7 +525,7 @@ def outing_stats_page():
             st.write("**單獨記錄：**")
             if details['solo_records']:
                 solo_df = pd.DataFrame(details['solo_records'])
-                solo_df['ServiceDate'] = solo_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
+                solo_df['ServiceDate'] = solo_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notna(x) else '')
                 solo_df.columns = ['活動日期', '院舍名稱']
                 solo_df.index = solo_df.index + 1
                 st.dataframe(solo_df, height=200)
@@ -510,7 +534,7 @@ def outing_stats_page():
             st.write("**協作記錄：**")
             if details['collab_records']:
                 collab_df = pd.DataFrame(details['collab_records'])
-                collab_df['ServiceDate'] = collab_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d'))
+                collab_df['ServiceDate'] = collab_df['ServiceDate'].apply(lambda x: pd.to_datetime(x).strftime('%Y-%m-%d') if pd.notna(x) else '')
                 collab_df.columns = ['活動日期', '院舍名稱', '協作者']
                 collab_df.index = collab_df.index + 1
                 st.dataframe(collab_df, height=200)
@@ -523,7 +547,6 @@ def outing_stats_page():
             st.write(f"單獨：{', '.join(solo_days_str)} → {len(details['solo_days'])} 天")
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
-
         # 院舍活動次數詳細統計
         st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
@@ -533,7 +556,7 @@ def outing_stats_page():
             filtered_homes = {home: dates for home, dates in home_details.items() if len(dates) == count}
             if filtered_homes:
                 home_activity_data = [
-                    {'院舍名稱': home, '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in dates)}
+                    {'院舍名稱': home, '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in sorted(dates))}
                     for home, dates in filtered_homes.items()
                 ]
                 home_activity_df = pd.DataFrame(home_activity_data)
@@ -542,27 +565,45 @@ def outing_stats_page():
                 st.dataframe(home_activity_df, height=300)
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
-
-        # 活動類型詳細統計
+        # 活動類型詳細統計（分區別）
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
         if selected_activity_region != '選擇分區':
             st.write(f"### {selected_activity_region} 分區活動類型統計")
-            activity_types = region_stats[selected_activity_region]['activity_types']
-            if activity_types:
-                activity_type_data = [
-                    {
-                        '活動類型': activity,
-                        '節數': details['count'],
-                        '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in details['dates'])
-                    }
-                    for activity, details in activity_types.items()
-                ]
-                activity_type_df = pd.DataFrame(activity_type_data)
-                activity_type_df.loc[len(activity_type_df)] = ['總計', activity_type_df['節數'].sum(), '']
-                activity_type_df.index = activity_type_df.index + 1
-                st.dataframe(activity_type_df, height=300)
+            activity_types_0 = region_stats[selected_activity_region]['activity_types_0']
+            activity_types_1 = region_stats[selected_activity_region]['activity_types_1']
+            if activity_types_0 or activity_types_1:
+                # 顯示 0 次
+                if activity_types_0:
+                    st.write("**NumberOfSession = 0 次**")
+                    activity_type_data_0 = [
+                        {
+                            '活動類型': activity,
+                            '節數': details['count'],
+                            '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in sorted(details['dates']))
+                        }
+                        for activity, details in activity_types_0.items()
+                    ]
+                    activity_type_df_0 = pd.DataFrame(activity_type_data_0)
+                    activity_type_df_0.loc[len(activity_type_df_0)] = ['總計', activity_type_df_0['節數'].sum(), '']
+                    activity_type_df_0.index = activity_type_df_0.index + 1
+                    st.dataframe(activity_type_df_0, height=200)
+                # 顯示 1 次
+                if activity_types_1:
+                    st.write("**NumberOfSession = 1 次**")
+                    activity_type_data_1 = [
+                        {
+                            '活動類型': activity,
+                            '節數': details['count'],
+                            '活動日期': ', '.join(pd.to_datetime(date).strftime('%Y-%m-%d') for date in sorted(details['dates']))
+                        }
+                        for activity, details in activity_types_1.items()
+                    ]
+                    activity_type_df_1 = pd.DataFrame(activity_type_data_1)
+                    activity_type_df_1.loc[len(activity_type_df_1)] = ['總計', activity_type_df_1['節數'].sum(), '']
+                    activity_type_df_1.index = activity_type_df_1.index + 1
+                    st.dataframe(activity_type_df_1, height=200)
             else:
                 st.write("此分區無活動類型記錄")
 
