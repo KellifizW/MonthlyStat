@@ -445,9 +445,10 @@ def outing_stats_page():
             region_df.index = region_df.index + 1
             st.dataframe(region_df, height=300)
 
-        # 服務人次統計（放在統計區塊上方）
+        # 服務人次統計（含說明文字）
         if 'NumberOfParticipant(Without Volunteer Count)' in uploaded_df.columns:
             st.subheader("服務人次統計（按 NumberOfSession 分開）")
+            st.caption("0 次即是不夠35分鐘, 1次即是35分鐘或以上")
             participants_data = {
                 '分區': list(region_stats.keys()),
                 '總人次': [region_stats[r]['participants'] for r in region_stats],
@@ -462,24 +463,23 @@ def outing_stats_page():
             participants_df.index = participants_df.index + 1
             st.dataframe(participants_df, height=300, use_container_width=True)
 
-            # ServiceStatus 統計 - 改成單行顯示，放在服務人次統計上方
+            # ServiceStatus 統計 - 全部擠在單一行
             st.markdown("### ServiceStatus 統計")
             if 'ServiceStatus' in uploaded_df.columns:
                 status_counts = uploaded_df['ServiceStatus'].value_counts()
-                status_lines = []
+                total = status_counts.sum()
+                parts = []
                 for status, count in status_counts.items():
-                    status_lines.append(f"{status}: {count} 次")
-                if status_lines:
-                    st.write("　".join(status_lines))
-                total_status = status_counts.sum()
-                st.write(f"完成: {total_status} 次　總計: {total_status} 次")
+                    parts.append(f"{status}: {count} 次")
+                # 總結固定放最後
+                parts.append(f"總計: {total} 次")
+                st.write(" - ".join(parts))  # 用 - 分隔，全部一行
             else:
                 st.write("無 ServiceStatus 欄位")
-
         else:
             st.info("檔案中無「NumberOfParticipant(Without Volunteer Count)」欄位，無法顯示服務人次統計")
 
-        # 其他統計區塊（NumberOfSession、院舍活動次數、活動類型）
+        # 其他統計區塊
         col1, col2 = st.columns(2)
         with col1:
             st.write("**NumberOfSession 統計（按員工）：**")
@@ -493,8 +493,8 @@ def outing_stats_page():
                             '1 次': staff_stats[staff].get('session_1', 0),
                             '總計': staff_stats[staff].get('session_total', 0)
                         })
-                total_0 = sum(staff_stats[staff].get('session_0', 0) for staff in staff_stats)
-                total_1 = sum(staff_stats[staff].get('session_1', 0) for staff in staff_stats)
+                total_0 = sum(staff_stats[staff].get('session_0', 0) for staff in staff_stats if staff in staff_stats)
+                total_1 = sum(staff_stats[staff].get('session_1', 0) for staff in staff_stats if staff in staff_stats)
                 grand_total = total_0 + total_1
                 session_data.append({
                     '員工': '總計',
@@ -553,7 +553,7 @@ def outing_stats_page():
             else:
                 st.write("無此欄位")
 
-        # 分區詳細統計、員工詳細、院舍活動次數詳細、活動類型詳細（保持原樣）
+        # 分區詳細統計
         st.subheader("分區詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_region = st.selectbox("選擇分區", region_list, index=0, key="region_select")
@@ -573,6 +573,7 @@ def outing_stats_page():
             else:
                 st.write("無記錄")
 
+        # 員工詳細統計
         st.subheader("員工外出詳細統計")
         staff_list = ['選擇員工'] + list(staff_stats.keys())
         selected_staff = st.selectbox("選擇員工", staff_list, index=0, key="staff_select")
@@ -605,6 +606,7 @@ def outing_stats_page():
             st.write(f"協作：{', '.join(collab_days_str)} → {len(details['collab_days'])} 天")
             st.write(f"總計：{', '.join(all_days_str)} → {len(details['all_days'])} 天")
 
+        # 院舍活動次數詳細統計
         st.subheader("院舍活動次數詳細統計")
         activity_options = [f"{count} 次" for count in home_counts.keys()]
         selected_activity_count = st.selectbox("選擇活動次數", ['選擇次數'] + activity_options, index=0, key="home_activity_select")
@@ -623,6 +625,7 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
+        # 活動類型詳細統計
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
