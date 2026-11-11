@@ -339,6 +339,22 @@ def style_staff_table(df):
         return [''] * len(row)
     return df.style.apply(row_style, axis=1)
 
+# 判斷日期所屬季度
+def get_quarter(date):
+    try:
+        m = pd.to_datetime(date).month
+        if 1 <= m <= 3:
+            return 'Q1'
+        elif 4 <= m <= 6:
+            return 'Q2'
+        elif 7 <= m <= 9:
+            return 'Q3'
+        elif 10 <= m <= 12:
+            return 'Q4'
+    except:
+        return None
+    return None
+
 # 外出統計程式頁（主功能頁）
 def outing_stats_page():
     st.title("外出統計程式")
@@ -634,7 +650,7 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
-        # ========== 新增：按分區統計院舍活動次數 ==========
+        # ========== 按分區統計院舍活動次數（含季度欄位） ==========
         st.write("---")
         st.write("**按分區統計院舍活動次數：**")
         region_list_for_homes = ['選擇分區'] + list(region_stats.keys())
@@ -662,10 +678,29 @@ def outing_stats_page():
                     except:
                         return 9999
 
-                home_region_data = [
-                    {'院舍名稱': home, '活動次數': len(dates)}
-                    for home, dates in sorted(filtered_home_details.items(), key=sort_key)
-                ]
+                home_region_data = []
+                for home, dates in sorted(filtered_home_details.items(), key=sort_key):
+                    q1 = q2 = q3 = q4 = 0
+                    for d in dates:
+                        q = get_quarter(d)
+                        if q == 'Q1':
+                            q1 += 1
+                        elif q == 'Q2':
+                            q2 += 1
+                        elif q == 'Q3':
+                            q3 += 1
+                        elif q == 'Q4':
+                            q4 += 1
+                    total = len(dates)
+                    home_region_data.append({
+                        '院舍名稱': home,
+                        '1-3月': q1,
+                        '4-6月': q2,
+                        '7-9月': q3,
+                        '10-12月': q4,
+                        '總數': total
+                    })
+
                 home_region_df = pd.DataFrame(home_region_data)
                 home_region_df.index = home_region_df.index + 1
                 st.write(f"### {selected_home_region} 分區的院舍活動次數（共 {len(filtered_home_details)} 間）")
