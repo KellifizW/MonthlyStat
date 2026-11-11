@@ -634,6 +634,46 @@ def outing_stats_page():
             else:
                 st.write(f"沒有活動次數為 {count} 次的院舍")
 
+        # ========== 新增：按分區統計院舍活動次數 ==========
+        st.write("---")
+        st.write("**按分區統計院舍活動次數：**")
+        region_list_for_homes = ['選擇分區'] + list(region_stats.keys())
+        selected_home_region = st.selectbox(
+            "選擇分區查看該區所有院舍的活動次數",
+            region_list_for_homes,
+            index=0,
+            key="home_region_select"
+        )
+        if selected_home_region != '選擇分區':
+            region_homes = region_stats[selected_home_region]['homes']
+            # 篩選屬於該分區的院舍（用 HomeName 前綴數字比對）
+            filtered_home_details = {}
+            for home, dates in home_details.items():
+                hn = extract_home_number(home)
+                if hn is not None and hn in region_homes:
+                    filtered_home_details[home] = dates
+
+            if filtered_home_details:
+                # 依院舍編號排序
+                def sort_key(item):
+                    hn = extract_home_number(item[0])
+                    try:
+                        return int(hn) if hn else 9999
+                    except:
+                        return 9999
+
+                home_region_data = [
+                    {'院舍名稱': home, '活動次數': len(dates)}
+                    for home, dates in sorted(filtered_home_details.items(), key=sort_key)
+                ]
+                home_region_df = pd.DataFrame(home_region_data)
+                home_region_df.index = home_region_df.index + 1
+                st.write(f"### {selected_home_region} 分區的院舍活動次數（共 {len(filtered_home_details)} 間）")
+                st.dataframe(home_region_df, height=350, width='stretch')
+            else:
+                st.write(f"此分區（{selected_home_region}）無相關院舍活動記錄")
+        # ========== 新增結束 ==========
+
         st.subheader("活動類型詳細統計")
         region_list = ['選擇分區'] + list(region_stats.keys())
         selected_activity_region = st.selectbox("選擇分區查看活動類型統計", region_list, index=0, key="activity_type_select")
